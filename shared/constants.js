@@ -1,0 +1,11 @@
+export const SHIFT_SECONDS = 480;
+export const START_TEMP = 50;
+export const WIN_TEMP = 100;
+export const TICK_HZ = 10;
+export const DRIFT_PER_SEC = 0.2;
+export const MOVE_SPEED = 3;
+export const ACTION_RANGE = 2.4;
+export const ACTION_COOLDOWN_MS = 1000;
+export const REPAIR_AMOUNT = 2;
+export const SABOTAGE_AMOUNT = 3;
+export const CONSOLE_POSITION = { x: 0, z: -8 };

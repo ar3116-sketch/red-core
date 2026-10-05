@@ -1,0 +1,43 @@
+import * as THREE from 'three';
+export function buildFacility(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,glow,hazard}){
+ const feeds=[];
+ for(const [a,b,c,d] of [[-23,-15,-5,3],[15,23,-15,-13],[15,23,-10.5,-5],[15,18.5,-13,-10.5],[21,23,-13,-10.5]])for(let x=a;x<b;x+=1)for(let z=c;z<d;z+=.5)box(1,.12,.5,x+.5,-.06,z+.25,floor);
+ box(8,.2,8,-19,3.5,-1,dark);box(8,.2,10,19,3.5,-10,dark);
+ box(2.5,.12,2.5,19.75,-2.46,-11.75,floor);
+ for(const x of [18.5,21])box(.12,2.4,2.5,x,-1.2,-11.75,wall);
+ for(const z of [-13,-10.5])box(2.5,2.4,.12,19.75,-1.2,z,wall);
+ // An open inspection pit has a visible ladder back to the main floor.
+ for(const z of [-12,-11.3])box(.065,2.9,.065,18.67,-.95,z,rust);
+ for(let y=-2.2;y<.4;y+=.3)box(.065,.045,.7,18.67,y,-11.65,steel);
+ for(const x of [18.4,21.1])for(let z=-12.9;z<-10.5;z+=.35)box(.12,.016,.18,x,.009,z,hazard);
+ roomSign('SERVICE PIT / OPEN',19.75,2.6,-14.83,0);
+ const door=box(.3,2.7,2.4,-15,1.35,-1.5,steel);door.userData.dynamic=true;
+ roomSign('CAMERAS / LOCKED',-14.8,2.95,-1.5,Math.PI/2);
+ box(.07,.55,.4,-14.8,1.4,-3.3,dark);
+ for(let y=0;y<3;y++)for(let z=0;z<3;z++)box(.04,.07,.065,-14.75,1.55-y*.11,-3.4+z*.1,hazard);
+ roomSign('E / ACCESS PANEL',-14.77,2,-3.3,Math.PI/2);
+ roomSign('INCINERATOR',15.2,2.95,-10,Math.PI/2);
+ roomSign('WORKSHOP',-15.2,2.95,-1.5,-Math.PI/2);
+ // A grated furnace face, chimney, feed chute and nearby ash bin.
+ box(2.1,1.3,.06,21,1.35,-7.83,dark);
+ const fire=new THREE.MeshBasicMaterial({color:0xb87932});box(1.75,.9,.035,21,1.25,-7.88,fire);
+ for(let x=20.2;x<22;x+=.22)box(.07,1,.065,x,1.25,-7.91,dark);
+ const chimney=new THREE.Mesh(new THREE.CylinderGeometry(.3,.3,.75,8),rust);chimney.position.set(21,3.1,-6.8);scene.add(chimney);box(1,.2,.6,21,.65,-8.1,steel);
+ roomSign('E / FILTER PURGE',21,2.7,-7.85,Math.PI);
+ const furnaceLight=new THREE.PointLight(0xca8437,12,10,1.7);furnaceLight.position.set(21,1.5,-8.4);scene.add(furnaceLight);
+ const cameraLight=new THREE.PointLight(0xc09454,6,9,1.7);cameraLight.position.set(-19,2.7,-1);scene.add(cameraLight);
+ box(1.3,.08,.4,-19,3.3,-1,glow);
+ const views=[{position:[-6,6.5,-17],target:[0,-2,-22]},{position:[-16,3.1,8],target:[5,-2,27]},{position:[17,2.8,-6],target:[21,1,-8]}];
+ for(let i=0;i<3;i++){
+  const z=-3+i*2,target=new THREE.WebGLRenderTarget(128,96,{minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter});target.texture.colorSpace=THREE.SRGBColorSpace;
+  const material=new THREE.MeshBasicMaterial({map:target.texture,color:0x000000});
+  box(.7,.92,1.3,-21.5,1.5,z,dark);
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(1.05,.72),material);screen.position.set(-21.13,1.5,z);screen.rotation.y=Math.PI/2;scene.add(screen);
+  const camera=new THREE.PerspectiveCamera(70,4/3,.1,70);camera.position.set(...views[i].position);camera.lookAt(...views[i].target);feeds.push({camera,target,material});
+  roomSign(['01 / REACTOR','02 / COOLANT','03 / FILTERS'][i],-21.1,2.22,z,Math.PI/2);
+ }
+ roomSign('E / SEAT VACUUM TUBES',-21.1,2.8,-1,Math.PI/2);
+ const tubes=[];for(let i=0;i<3;i++){const material=new THREE.MeshBasicMaterial({color:0x27372b});const tube=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.3,6),material);tube.position.set(-20.99,1.15,-1.3+i*.3);scene.add(tube);tubes.push(material);}
+ let doorHeight=1.35,lastFrame=0,index=0;
+ return {update(dt,time,opened,powered){doorHeight+=((opened?4.2:1.35)-doorHeight)*Math.min(1,dt*6);door.position.y=doorHeight;furnaceLight.intensity=10+Math.sin(time*4)*1.5+Math.sin(time*7)*.6;fire.color.setHex(0xb87932).multiplyScalar(.85+Math.sin(time*5)*.15);for(const f of feeds)f.material.color.setHex(powered?0x9dba94:0x000000);for(const t of tubes)t.color.setHex(powered?0xd99b44:0x27372b);},renderFeeds(renderer,now,powered,position,selectLights){if(!powered||position.x>-15||now-lastFrame<200)return;lastFrame=now;const f=feeds[index++%feeds.length],previous=renderer.getRenderTarget();renderer.setRenderTarget(f.target);selectLights(f.camera.position);renderer.render(scene,f.camera);renderer.setRenderTarget(previous);}};
+}

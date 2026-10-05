@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "red-core",
+  "main": "server/room.ts",
+  "compatibilityDate": "2024-05-01"
+}
