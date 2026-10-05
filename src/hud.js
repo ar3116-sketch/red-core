@@ -14,6 +14,8 @@ export function renderObjectives(s,me,heldWrench){
   if(me.role==='saboteur')items.push({text:me.sabotage>0?`SABOTAGE READY IN ${Math.ceil(me.sabotage)}S`:'SABOTAGE READY / VALVE, BREAKER, DOORS OR A CAMERA CABLE',urgent:me.sabotage<=0});
   items.push({text:me.role==='saboteur'?'SERVICE THE REACTOR (YOUR CYCLES ADD HEAT)':'SERVICE THE REACTOR CONSOLE / REACTOR HALL'});
   if(s.coolant){if(s.coolant.cooldown>0)items.push({text:'COOLANT FLUSH COMPLETE',done:true});else if(s.coolant.filterReady)items.push({text:'BALANCE COOLANT / LOWER BASIN'});else items.push({text:`PURGE FILTERS ${s.coolant.filterProgress}/3 / INCINERATOR`});}
+  const edges=Object.entries(s.tools?.jobs||{}).filter(([id,v])=>id.endsWith('-edge')&&v<3).length;
+  if(edges)items.push({text:`${edges} SHAFT-EDGE LEAKS / LEAN OVER THE BROKEN RAILS (WRENCH)`,urgent:edges>3});
   const leaks=Object.entries(s.tools?.jobs||{}).filter(([id])=>id.endsWith('leak'));const sealed=leaks.filter(([,v])=>v>=3).length;
   items.push({text:`SEAL LEAKS ${sealed}/${leaks.length}${heldWrench?'':' / NEEDS A WRENCH'}`,done:sealed===leaks.length});
   if(!s.cameraOpened)items.push({text:'OPEN THE CAMERA ROOM / ACCESS PANEL'});else if(!s.tubes?.powered)items.push({text:'POWER THE CAMERAS / SEAT 3 TUBES'});else items.push({text:'CAMERAS ONLINE / SCIF RADIO WORKS',done:true});

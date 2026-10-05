@@ -7,12 +7,21 @@ export const TOOL_STARTS=[
  {id:'wrench-pumps',kind:'wrench',x:-13.3,y:1.72,z:-5.75,floor:0},
  {id:'rope-exit',kind:'rope',x:12.6,y:1.52,z:-3.75,floor:0},
  {id:'wrench-basin',kind:'wrench',x:-12.8,y:-1.58,z:28.3,floor:-3.2},
+ {id:'wrench-ehall',kind:'wrench',x:25.6,y:1.17,z:6,floor:0},
+ {id:'wrench-whall',kind:'wrench',x:-25.6,y:1.27,z:-17.4,floor:0},
 ];
 export const TOOL_JOBS=[
  {id:'pump-leak',kind:'leak',tool:'wrench',x:-7.3,y:1.1,z:-11.6,floor:0,label:'LEAKING PUMP FLANGE'},
  {id:'core-leak',kind:'leak',tool:'wrench',x:5.7,y:1.1,z:-19,floor:0,label:'CORE RETURN LEAK'},
  {id:'basin-leak',kind:'leak',tool:'wrench',x:-4.1,y:-2.15,z:21.6,floor:-3.2,label:'SUMP PIPE LEAK'},
  HANGAR_LEAK,
+ // Fittings just past a broken rail: you work them leaning over the drop, back to the room.
+ {id:'e-riser-edge',kind:'leak',tool:'wrench',x:29.05,y:.9,z:-4.95,floor:0,label:'SHAFT RISER LEAK',edge:true},
+ {id:'e-damper-edge',kind:'leak',tool:'wrench',x:29.05,y:.9,z:3.5,floor:0,label:'SHAFT DAMPER LEAK',edge:true},
+ {id:'w-riser-edge',kind:'leak',tool:'wrench',x:-29.05,y:.9,z:-13.45,floor:0,label:'SHAFT RISER LEAK',edge:true},
+ {id:'w-cable-edge',kind:'leak',tool:'wrench',x:-29.05,y:.9,z:-5.5,floor:0,label:'CONDUIT STEAM LEAK',edge:true},
+ {id:'buran-vent-edge',kind:'leak',tool:'wrench',x:40.05,y:.5,z:27.65,floor:0,label:'BURAN FUEL VENT',edge:true},
+ {id:'crane-edge',kind:'leak',tool:'wrench',x:58.05,y:.6,z:24.65,floor:0,label:'CRANE HYDRAULIC LEAK',edge:true},
  {id:'rescue-west',kind:'anchor',tool:'rope',x:-14.15,y:.9,z:18.5,floor:0,label:'WEST GALLERY ROPE ANCHOR',top:{x:-14.8,y:0,z:18.5},bottom:{x:-13.2,y:-3.2,z:18.5}},
  {id:'rescue-pit',kind:'anchor',tool:'rope',x:18.2,y:.8,z:-12,floor:0,label:'SERVICE PIT ROPE ANCHOR',top:{x:17.7,y:0,z:-12},bottom:{x:19.3,y:-2.4,z:-12}},
 ];

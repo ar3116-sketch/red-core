@@ -1,6 +1,7 @@
 import {ROOMS,WALLS,roomAt} from '../shared/world.js';
 import {DECKS,RAMPS} from '../shared/sewer.js';
 import {WING_SPACES,SHAFTS} from '../shared/wings.js';
+import {HANGAR,HANGAR_GALLERIES,HANGAR_FLOOR,HANGAR_STAIR,BURAN} from '../shared/hangar.js';
 export function createFloorPlan(canOpen=()=>true) {
  const panel=document.getElementById('floor-plan'),button=document.getElementById('map-toggle');
  const canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
@@ -14,7 +15,7 @@ export function createFloorPlan(canOpen=()=>true) {
   const level=position.z>5&&Math.abs(position.x)<18?(position.y< -3?' / LOWER':position.y<-.1?' / STAIRS':' / UPPER'):'';
   document.getElementById('location').textContent=(roomAt(position.x,position.z)?.name||'PASSAGE')+level;
   if(panel.hidden||now-previous<100)return;previous=now;
-  const scale=5.8,x=v=>12+(v+42)*scale,z=v=>16+(v+30)*scale;
+  const scale=5.2,x=v=>12+(v+42)*scale,z=v=>16+(v+30)*scale;
   ctx.fillStyle='#10190f';ctx.fillRect(0,0,560,512);
   ctx.font='8px Object86, monospace';ctx.textAlign='center';
   const rect=(s,color)=>{ctx.fillStyle=color;ctx.fillRect(x(s.minX),z(s.minZ),(s.maxX-s.minX)*scale,(s.maxZ-s.minZ)*scale);};
@@ -22,6 +23,9 @@ export function createFloorPlan(canOpen=()=>true) {
   for(const room of ROOMS){ctx.globalAlpha=.3;rect({minX:room.x-5,maxX:room.x+5,minZ:room.z-5,maxZ:room.z+5},'#'+room.color.toString(16).padStart(6,'0'));ctx.globalAlpha=1;label(room.name,room.x,room.z);}
   for(const s of WING_SPACES){ctx.globalAlpha=s.kind==='room'?.3:.18;rect(s,'#'+s.color.toString(16).padStart(6,'0'));ctx.globalAlpha=1;if(s.kind!=='tunnel')label(s.name,(s.minX+s.maxX)/2-(s.kind==='hall'?(s.minX>0?1.4:-1.4):0),(s.minZ+s.maxZ)/2);}
   for(const s of SHAFTS)rect(s,'#040604');
+  // Hangar 2: galleries round a drop to the floor where the orbiter sits.
+  rect(HANGAR,'#040604');rect(HANGAR_FLOOR,'#2a2c22');for(const g of HANGAR_GALLERIES)rect(g,'#5e624c');rect(HANGAR_STAIR,'#ad8e46');
+  ctx.fillStyle='#d8d5c4';ctx.beginPath();ctx.moveTo(x(BURAN.x),z(BURAN.z-10));ctx.lineTo(x(BURAN.x+6),z(BURAN.z+7));ctx.lineTo(x(BURAN.x-6),z(BURAN.z+7));ctx.closePath();ctx.fill();label('BURAN HANGAR',BURAN.x,BURAN.z+11);
   rect({minX:-8,maxX:8,minZ:-29,maxZ:-15},'#304347');ctx.strokeStyle='#78a6b0';ctx.beginPath();ctx.arc(x(0),z(-22),4.1*scale,0,Math.PI*2);ctx.stroke();label('CORE',0,-22);
   rect({minX:-23,maxX:-15,minZ:-5,maxZ:3},'#394739');rect({minX:15,maxX:23,minZ:-15,maxZ:-5},'#5b4530');label('CAMERAS',-19,-1);label('BURN',19,-9);
   rect({minX:-18,maxX:18,minZ:5,maxZ:37},'#22392f');

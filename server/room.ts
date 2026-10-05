@@ -49,6 +49,7 @@ export default class Room implements Party.Server {
  log:{at:string;text:string}[]=[];radioQueue:{to:number;text:string;deliver:number}[]=[];
  surgeUntil=0;mistAt:{x:number;z:number;until:number}|null=null;
  tutorial=false;
+ edgeReset=new Map<string,number>();
 
  constructor(readonly room:Party.Room){this.resetMatch();}
 
@@ -57,7 +58,7 @@ export default class Room implements Party.Server {
   this.tLeft=SHIFT_SECONDS;this.temp=START_TEMP;this.pressure=20;this.outcome=null;
   this.directorClock=0;this.clusterSeconds=0;this.blackoutSeconds=0;this.lastEvent='';
   this.coolant=createCoolantState(this.seed);this.coolantOperator=null;this.cameraOpened=false;this.tubes=createTubes(this.seed);
-  this.tools=createToolState();this.toolPending.clear();
+  this.tools=createToolState();this.toolPending.clear();this.edgeReset?.clear();
   for(const id of this.relayJobs.keys())this.relayJobs.set(id,createRelay(this.seed+':'+id));
   this.safePuzzle=puzzleForRoom(this.seed);this.offers=draft(this.seed);
   this.valveUntil=0;this.sealedUntil=0;this.cutCameras.clear();this.lastConsoleCycle=null;this.log=[];this.radioQueue=[];this.surgeUntil=0;this.mistAt=null;
@@ -178,6 +179,10 @@ export default class Room implements Party.Server {
   this.clusterSeconds=this.largestCluster()>=3?this.clusterSeconds+dt:0;
   this.directorClock+=dt;
   if(this.directorClock>=18&&!this.directorBusy){this.directorClock=0;void this.runDirector();}
+  // Edge fittings re-open about 50 s after being sealed (and cool the core 3% when sealed).
+  for(const j of TOOL_JOBS){if(!(j as any).edge)continue;const sealed=this.tools.jobs[j.id]>=3,at=this.edgeReset.get(j.id);
+   if(sealed&&at===undefined){this.edgeReset.set(j.id,now+50000);this.temp=Math.max(0,this.temp-3);}
+   else if(sealed&&at!==undefined&&now>=at){this.tools.jobs[j.id]=0;this.edgeReset.delete(j.id);}}
   const op=this.coolantOperator?this.players.get(this.coolantOperator):null;
   if(updateCoolant(this.coolant,dt,!!op&&atCoolantStation(op))){this.temp=Math.max(0,this.temp-8);this.pressure=Math.max(20,this.pressure-6);this.event('LOWER BASIN: COOLANT FLUSH / CORE -8');if(op)op.stats.tasks++;}
   for(const r of this.radioQueue.filter(r=>now>=r.deliver)){const to=[...this.players.values()].find(p=>p.line===r.to&&!p.bot);if(to)this.send(to.id,{t:'radio',text:r.text});}

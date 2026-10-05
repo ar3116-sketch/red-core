@@ -9,7 +9,7 @@ function patch(m,{affine=false}={}){
  const aff=affine&&!!m.map&&(m.isMeshLambertMaterial||m.isMeshBasicMaterial),prev=m.onBeforeCompile,base=m.customProgramCacheKey();
  m.onBeforeCompile=function(s,r){prev.call(this,s,r);s.uniforms.uPS1Res=res;
   s.vertexShader='uniform vec2 uPS1Res;\n'+(aff?'varying float vPS1W;\n':'')+s.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
-if(gl_Position.w>0.){vec2 g=uPS1Res*.5;gl_Position.xy=floor(gl_Position.xy/gl_Position.w*g+.5)/g*gl_Position.w;}`+(aff?'\n#ifdef USE_MAP\nvMapUv*=gl_Position.w;vPS1W=gl_Position.w;\n#endif':''));
+if(gl_Position.w>1.5){vec2 g=uPS1Res*.5;vec2 snapped=floor(gl_Position.xy/gl_Position.w*g+.5)/g*gl_Position.w;gl_Position.xy=mix(gl_Position.xy,snapped,smoothstep(1.5,4.,gl_Position.w));}`+(aff?'\n#ifdef USE_MAP\nvMapUv*=gl_Position.w;vPS1W=gl_Position.w;\n#endif':''));
   if(aff)s.fragmentShader='varying float vPS1W;\n'+s.fragmentShader.replace('#include <map_fragment>','#ifdef USE_MAP\ndiffuseColor*=texture2D(map,vMapUv/vPS1W);\n#endif');
  };
  m.customProgramCacheKey=()=>base+(aff?'|ps1a':'|ps1');m.needsUpdate=true;

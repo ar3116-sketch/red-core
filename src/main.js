@@ -447,7 +447,7 @@ function loop(now){
  if(specimen&&!specimen.inVent&&!spec){const d=Math.hypot(specimen.x-position.x,specimen.z-position.z);near=Math.max(0,1-d/9)*(specimen.still<700?1:.35);
   if(specimen.still<700&&d<16&&now-lastStepSound>480){lastStepSound=now;audio.thud(Math.max(0,1-d/16),THREE.MathUtils.clamp(Math.sin(Math.atan2(specimen.x-position.x,specimen.z-position.z)-yaw-Math.PI),-1,1));}}
  const danger=Math.max(0,(temp-80)/20,near*.8,st.surge?.5:0);
- audio.update(dt,{moving,temp:Math.max(temp,50+near*50),pressure,position,alarm,holdingBreath:keys.has('KeyC')||touchBreath});
+ audio.update(dt,{moving,temp,pressure,position:inShift?position:camera.position,alarm,near,holdingBreath:keys.has('KeyC')||touchBreath});
  $('vignette').style.opacity=String(Math.min(.85,(me.state==='hanging'?.6:0)+((me.adrenaline||0)>0?.5:0)+near*.3));
  lamp.intensity=blackout?.2:5;emergency.intensity=blackout?1.7:.8;
  // HUD.

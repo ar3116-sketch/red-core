@@ -59,7 +59,7 @@ export const WING_FIXTURES=[
  {id:'lift-cage',x:48.65,z:-.5,w:2.7,d:4.4,h:5},{id:'lift-crates',x:43,z:3.9,w:1.6,d:1.6,h:1.3},{id:'lift-winch',x:44.5,z:-5.3,w:2.2,d:1,h:1.6},
  {id:'storage-racks',x:-40.4,z:-.5,w:.8,d:6,h:2.4},{id:'storage-lockers',x:-36,z:-4.6,w:4,d:.6,h:2},{id:'storage-crates',x:-33.6,z:2.9,w:1.6,d:1.4,h:1.2},
  {id:'mainframe',x:-40.4,z:-20.5,w:.8,d:7,h:2.3},{id:'file-row',x:-36,z:-25.5,w:5,d:.6,h:1.4},{id:'sweeper-safe',x:-35,z:-15.45,w:1.4,d:.6,h:1.65},
- {id:'hall-e-crates',x:30.3,z:10.6,w:1,d:1.6,h:1.1},{id:'hall-w-crates',x:-30.3,z:-24.4,w:1,d:2,h:1.2},
+ {id:'hall-e-crates',x:25.6,z:6.2,w:1,d:1.6,h:1.1},{id:'hall-w-crates',x:-25.6,z:-17.6,w:1,d:2,h:1.2},
 ];
 // Open cooling shafts make the halls lethal: a shove at a broken rail sends someone over the lip.
 export const SHAFT_FLOOR=-9;

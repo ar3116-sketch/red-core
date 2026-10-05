@@ -1,164 +1,169 @@
-// Procedural suit and bunker audio. Starts only after the player presses AUDIO.
+// Procedural bunker sound. Everything is synthesised: no samples to download, nothing to license.
+// Buses: world (sent to a long concrete reverb), suit (dry and close: breath, heart), ui (dry).
+const rand=(a,b)=>a+Math.random()*(b-a);
 export class BunkerAudio {
-  constructor() {
-    this.ctx = null;
-    this.enabled = false;
-    this.nextBeat = 0;
-    this.nextGeiger = 0;
-    this.breathPhase = 0;
-    this.nextStep=0;this.nextDrip=0;this.nextAlarm=0;this.alarmId='normal';
-    this.coarsePointer = matchMedia('(pointer:coarse)');
+  constructor(){
+    this.ctx=null;this.enabled=false;
+    this.nextBeat=0;this.nextGeiger=0;this.nextStep=0;this.nextDrip=0;this.nextAlarm=0;this.alarmId='normal';
+    this.nextClank=0;this.nextGroan=0;this.breath={phase:'out',until:0};this.wasHolding=false;
+    this.coarsePointer=matchMedia('(pointer:coarse)');
   }
-
-  async toggle() {
-    if (!this.ctx) this.start();
-    if (!this.ctx) return false;
+  async toggle(){
+    if(!this.ctx)this.start();
+    if(!this.ctx)return false;
     await this.ctx.resume();
-    this.enabled = !this.enabled;
-    this.master.gain.setTargetAtTime(this.enabled ? 0.45 : 0, this.ctx.currentTime, .04);
-    if (this.enabled) {
-      this.nextBeat = this.ctx.currentTime + .12;
-      this.nextGeiger = this.ctx.currentTime + .5;
-    }
+    this.enabled=!this.enabled;
+    this.master.gain.setTargetAtTime(this.enabled?.9:0,this.ctx.currentTime,.05);
+    if(this.enabled){const t=this.ctx.currentTime;this.nextBeat=t+.2;this.nextGeiger=t+.5;this.nextClank=t+rand(3,8);this.nextGroan=t+rand(8,16);}
     return this.enabled;
   }
-
-  start() {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return;
-    this.ctx = new AudioContextClass();
-    this.master = this.ctx.createGain();
-    this.master.gain.value = 0;
-    this.master.connect(this.ctx.destination);
-
-    // 50 Hz mains hum with a faint second harmonic.
-    for (const [frequency, level] of [[50, .045], [100, .012]]) {
-      const oscillator = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.value = frequency;
-      gain.gain.value = level;
-      oscillator.connect(gain).connect(this.master);
-      oscillator.start();
-    }
-
-    const noise = this.ctx.createBuffer(1, this.ctx.sampleRate * 2, this.ctx.sampleRate);
-    const data = noise.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    this.noise=noise;
-    this.world=this.ctx.createGain();this.world.gain.value=.8;this.world.connect(this.master);
-    const reverb=this.ctx.createConvolver(),impulse=this.ctx.createBuffer(2,this.ctx.sampleRate*.8,this.ctx.sampleRate);
-    for(let channel=0;channel<2;channel++){const data=impulse.getChannelData(channel);for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/data.length,3)*.22;}
-    reverb.buffer=impulse;const wet=this.ctx.createGain();wet.gain.value=.22;this.world.connect(reverb).connect(wet).connect(this.master);
-    this.layers={};
-    for(const [name,frequency,type] of [['fan',170,'lowpass'],['steam',1500,'bandpass'],['furnace',350,'lowpass'],['water',650,'lowpass']]){
-      const source=this.ctx.createBufferSource();source.buffer=noise;source.loop=true;
-      const filter=this.ctx.createBiquadFilter();filter.type=type;filter.frequency.value=frequency;filter.Q.value=.6;
-      const gain=this.ctx.createGain();gain.gain.value=0;source.connect(filter).connect(gain).connect(this.world);source.start();this.layers[name]=gain;
-    }
-    const breath = this.ctx.createBufferSource();
-    breath.buffer = noise;
-    breath.loop = true;
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 570;
-    filter.Q.value = .6;
-    this.breathGain = this.ctx.createGain();
-    this.breathGain.gain.value = 0;
-    breath.connect(filter).connect(this.breathGain).connect(this.master);
-    breath.start();
-  }
-
-  pulse(when, loudness) {
-    const oscillator = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(76, when);
-    oscillator.frequency.exponentialRampToValueAtTime(43, when + .12);
-    gain.gain.setValueAtTime(.0001, when);
-    gain.gain.exponentialRampToValueAtTime(.16 * loudness, when + .018);
-    gain.gain.exponentialRampToValueAtTime(.0001, when + .18);
-    oscillator.connect(gain).connect(this.master);
-    oscillator.start(when);
-    oscillator.stop(when + .19);
-  }
-
-  click(when, intensity) {
-    const oscillator = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    oscillator.type = 'square';
-    oscillator.frequency.value = 1050 + Math.random() * 600;
-    gain.gain.setValueAtTime(.035 * intensity, when);
-    gain.gain.exponentialRampToValueAtTime(.0001, when + .012);
-    oscillator.connect(gain).connect(this.master);
-    oscillator.start(when);
-    oscillator.stop(when + .015);
-  }
-
-  tone(when,frequency,duration,volume=.06,type='sine',pan=0){
-    const oscillator=this.ctx.createOscillator(),gain=this.ctx.createGain(),stereo=this.ctx.createStereoPanner();
-    oscillator.type=type;oscillator.frequency.setValueAtTime(frequency,when);stereo.pan.value=pan;
-    gain.gain.setValueAtTime(.0001,when);gain.gain.exponentialRampToValueAtTime(volume,when+.015);gain.gain.exponentialRampToValueAtTime(.0001,when+duration);
-    oscillator.connect(gain).connect(stereo).connect(this.world);oscillator.start(when);oscillator.stop(when+duration+.02);
-  }
-  burst(when,frequency,duration,volume,pan=0){
-    const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain(),stereo=this.ctx.createStereoPanner();source.buffer=this.noise;filter.type='lowpass';filter.frequency.value=frequency;stereo.pan.value=pan;
-    gain.gain.setValueAtTime(volume,when);gain.gain.exponentialRampToValueAtTime(.0001,when+duration);source.connect(filter).connect(gain).connect(stereo).connect(this.world);source.start(when);source.stop(when+duration+.01);
-  }
-  // Called on the first click or key press; browsers only allow audio after a gesture.
+  // Browsers only allow audio after a gesture; the first click or key press turns it on.
   async enable(){if(this.enabled)return true;return this.toggle();}
-  thud(volume,pan=0){if(!this.ctx||!this.enabled)return;const now=this.ctx.currentTime;this.burst(now,180,.22,.35*volume,pan);this.tone(now,48,.25,.18*volume,'sine',pan);}
-  cue(kind){if(!this.ctx||!this.enabled)return;const now=this.ctx.currentTime;
-    if(kind==='beat'){this.pulse(now,1.1);return;}
-    if(kind==='grab'){this.burst(now,900,.18,.3);this.tone(now,90,.3,.12,'triangle');return;}
-    if(kind==='slip'){this.burst(now,1400,.3,.2);this.tone(now,220,.4,.08,'sawtooth');return;}
-    if(kind==='hit'||kind==='shoved'){this.burst(now,320,.3,kind==='hit'?.4:.25);this.tone(now,70,.3,.2,'triangle');return;}
-    if(kind==='vent'){for(let i=0;i<6;i++)this.burst(now+i*.11,2400,.07,.12,Math.random()-.5);return;}
-    if(kind==='pulse'){this.tone(now,180,1.2,.08,'sine');this.tone(now+.05,360,1,.04,'sine');return;}
-    if(kind==='radio'){this.burst(now,3000,.5,.06);this.tone(now+.1,1200,.08,.03,'square');return;}
-    if(kind==='lunge'){this.burst(now,500,.25,.3);this.tone(now,110,.3,.12,'sawtooth');return;}
-    if(kind==='success'){this.tone(now,420,.15,.05);this.tone(now+.15,620,.22,.05);}
-    else if(kind==='reject'){this.tone(now,120,.25,.06,'triangle');}
-    else if(kind==='turn'){this.burst(now,1600,.05,.035);}
-    else if(kind==='fall'){this.burst(now,260,.35,.22);}
-    else this.burst(now,850,.12,.05);
-  }
-  update(dt, { moving, temp, pressure, holdingBreath,position={x:0,y:0,z:0},alarm={id:'normal'} }) {
-    if (!this.ctx || !this.enabled) return;
-    const stress = Math.min(1, (moving ? .28 : 0) + Math.max(0, temp - 65) / 70 + Math.max(0, pressure - 65) / 80 + (holdingBreath ? .25 : 0));
-    const now = this.ctx.currentTime;
-    const sewer=position.z>5,incinerator=position.x>15,reactor=position.z< -5&&Math.abs(position.x)<5;
-    this.layers.fan.gain.setTargetAtTime(incinerator?.035:sewer?.015:.028,now,.3);
-    this.layers.steam.gain.setTargetAtTime(sewer?.012:pressure>50?.01:.002,now,.3);
-    this.layers.furnace.gain.setTargetAtTime(incinerator?.065:reactor?.022:0,now,.4);
-    this.layers.water.gain.setTargetAtTime(sewer?(position.y< -2?.055:.015):0,now,.4);
-    if(moving&&now>this.nextStep){this.burst(now,sewer&&position.y< -2?650:1200,.12,.10,this.nextStep%2?-.15:.15);this.tone(now,95,.10,.05,'triangle');this.nextStep=now+.43;}
-    if(sewer&&now>this.nextDrip){this.tone(now,1000+Math.random()*500,.13,.035,'sine',Math.random()*1.5-.75);this.nextDrip=now+1.3+Math.random()*2.7;}
-    if(alarm.id!==this.alarmId){this.alarmId=alarm.id;this.nextAlarm=now;}
-    if(alarm.id!=='normal'&&now>=this.nextAlarm){
-      if(alarm.id==='reactor'){
-        for(let i=0;i<5;i++)this.tone(now+i*.18,280+i*65,.3,.045,'triangle');
-        this.nextAlarm=now+3.2;
-      }else if(alarm.id==='containment'){this.tone(now,440,.2,.035);this.tone(now+.3,660,.35,.035);this.nextAlarm=now+10;
-      }else if(alarm.id==='coolant'){this.tone(now,370,.25,.055,'triangle');this.tone(now+.4,285,.35,.055,'triangle');this.nextAlarm=now+6;}
-      else{for(let i=0;i<3;i++)this.tone(now+i*.24,710,.1,.025,'square');this.nextAlarm=now+5;}
-    }
-    const breathRate = .22 + stress * .18;
-    this.breathPhase += dt * breathRate * Math.PI * 2;
-    const envelope = .5 + .5 * Math.sin(this.breathPhase);
-    this.breathGain.gain.setTargetAtTime(holdingBreath ? 0 : (.02 + stress * .025) * envelope, now, .06);
 
-    const interval = 60 / (62 + stress * 64);
-    if (this.nextBeat < now - .3) this.nextBeat = now;
-    if (this.nextBeat <= now + .05) {
-      this.pulse(this.nextBeat, .65 + stress * .6);
-      this.pulse(this.nextBeat + .19, .38 + stress * .4);
-      if (this.coarsePointer.matches && navigator.vibrate) navigator.vibrate(12);
-      this.nextBeat += interval;
+  start(){
+    const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+    const ctx=this.ctx=new AC();
+    this.master=ctx.createGain();this.master.gain.value=0;
+    const comp=ctx.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=3;comp.attack.value=.01;comp.release.value=.25;
+    this.master.connect(comp).connect(ctx.destination);
+    // Noise sources: white for hiss and transients, brown for rumble.
+    const len=ctx.sampleRate*3;this.noise=ctx.createBuffer(1,len,ctx.sampleRate);this.brown=ctx.createBuffer(1,len,ctx.sampleRate);
+    {const w=this.noise.getChannelData(0),b=this.brown.getChannelData(0);let last=0;for(let i=0;i<len;i++){w[i]=Math.random()*2-1;last=(last+.02*w[i])/1.02;b[i]=last*3.5;}}
+    // Concrete bunker reverb: early reflections, then a dark 2.6 s tail.
+    const ir=ctx.createBuffer(2,ctx.sampleRate*2.6,ctx.sampleRate);
+    for(let c=0;c<2;c++){const d=ir.getChannelData(c);let lp=0;for(let i=0;i<d.length;i++){const t=i/ctx.sampleRate;lp+= .18*((Math.random()*2-1)-lp);d[i]=lp*Math.pow(1-t/2.6,2.4)*.9;}
+      for(const [t,g] of [[.011,.6],[.023,.45],[.037,.35],[.052,.3],[.071,.22]])d[Math.floor((t+c*.003)*ctx.sampleRate)]+=g;}
+    this.verb=ctx.createConvolver();this.verb.buffer=ir;const wet=ctx.createGain();wet.gain.value=.42;this.verb.connect(wet).connect(this.master);
+    this.world=ctx.createGain();this.world.gain.value=.85;this.world.connect(this.master);this.world.connect(this.verb);
+    this.suit=ctx.createGain();this.suit.gain.value=.8;this.suit.connect(this.master);
+    this.ui=ctx.createGain();this.ui.gain.value=.7;this.ui.connect(this.master);
+    // Bed: mains hum with a slow wobble, room rumble, and per-area machinery layers.
+    const hum=ctx.createGain();hum.gain.value=.03;hum.connect(this.world);
+    for(const [f,g] of [[50,1],[100,.45],[150,.15]]){const o=ctx.createOscillator();o.frequency.value=f;const k=ctx.createGain();k.gain.value=g;o.connect(k).connect(hum);o.start();}
+    const wob=ctx.createOscillator();wob.frequency.value=.13;const wg=ctx.createGain();wg.gain.value=.012;wob.connect(wg).connect(hum.gain);wob.start();
+    this.layers={};
+    const loop=(buf,type,freq,q,bus=this.world)=>{const s=ctx.createBufferSource();s.buffer=buf;s.loop=true;s.loopStart=rand(0,1);const f=ctx.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=q;const g=ctx.createGain();g.gain.value=0;s.connect(f).connect(g).connect(bus);s.start(0,rand(0,2));return {g,f};};
+    this.layers.rumble=loop(this.brown,'lowpass',180,.5);this.layers.rumble.g.gain.value=.12;
+    this.layers.fan=loop(this.noise,'lowpass',420,.7);
+    const blade=ctx.createOscillator();blade.frequency.value=7.5;const bg=ctx.createGain();bg.gain.value=.012;blade.connect(bg).connect(this.layers.fan.g.gain);blade.start();
+    this.layers.steam=loop(this.noise,'bandpass',2600,.8);
+    this.layers.furnace=loop(this.brown,'lowpass',260,.9);
+    this.layers.water=loop(this.noise,'lowpass',900,.4);
+    this.layers.shaft=loop(this.brown,'bandpass',90,1.5);
+    // The specimen's presence: a sub growl that swells as it closes in.
+    const growl=ctx.createOscillator();growl.type='sawtooth';growl.frequency.value=41;const gf=ctx.createBiquadFilter();gf.type='lowpass';gf.frequency.value=160;this.growl=ctx.createGain();this.growl.gain.value=0;
+    const gl=ctx.createOscillator();gl.frequency.value=3.1;const glg=ctx.createGain();glg.gain.value=6;gl.connect(glg).connect(growl.frequency);gl.start();
+    growl.connect(gf).connect(this.growl).connect(this.world);growl.start();
+  }
+
+  // ---- building blocks ----
+  env(g,t,peak,attack,decay){g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(.0002,peak),t+attack);g.gain.exponentialRampToValueAtTime(.0001,t+attack+decay);}
+  pan(v){const p=this.ctx.createStereoPanner();p.pan.value=Math.max(-1,Math.min(1,v));return p;}
+  burst(t,{type='bandpass',freq=1000,q=1,dur=.1,vol=.1,attack=.002,bus=this.world,pan=0,sweep=null,buffer=this.noise}){
+    const s=this.ctx.createBufferSource();s.buffer=buffer;const f=this.ctx.createBiquadFilter();f.type=type;f.frequency.setValueAtTime(freq,t);f.Q.value=q;
+    if(sweep)f.frequency.exponentialRampToValueAtTime(sweep,t+dur);
+    const g=this.ctx.createGain();this.env(g,t,vol,attack,dur);s.connect(f).connect(g).connect(this.pan(pan)).connect(bus);s.start(t,rand(0,2));s.stop(t+attack+dur+.05);
+  }
+  tone(t,{freq=440,to=null,type='sine',dur=.2,vol=.05,attack=.005,bus=this.world,pan=0}){
+    const o=this.ctx.createOscillator();o.type=type;o.frequency.setValueAtTime(freq,t);if(to)o.frequency.exponentialRampToValueAtTime(to,t+attack+dur);
+    const g=this.ctx.createGain();this.env(g,t,vol,attack,dur);o.connect(g).connect(this.pan(pan)).connect(bus);o.start(t);o.stop(t+attack+dur+.05);
+  }
+  // Struck metal: an impulse into a few high-Q resonators. Inharmonic partials read as steel.
+  ring(t,{freqs=[620,1013,1680],q=30,vol=.12,dur=.8,bus=this.world,pan=0}){
+    const s=this.ctx.createBufferSource();s.buffer=this.noise;const g=this.ctx.createGain();this.env(g,t,1,.001,.012);s.connect(g);
+    const out=this.ctx.createGain();out.gain.setValueAtTime(vol,t);out.gain.exponentialRampToValueAtTime(.0001,t+dur);out.connect(this.pan(pan)).connect(bus);
+    for(const f of freqs){const b=this.ctx.createBiquadFilter();b.type='bandpass';b.frequency.value=f;b.Q.value=q;g.connect(b).connect(out);}
+    s.start(t,rand(0,2));s.stop(t+.05);
+  }
+  distort(amount=8){const w=this.ctx.createWaveShaper(),n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/n*2-1;c[i]=Math.tanh(x*amount)/Math.tanh(amount);}w.curve=c;return w;}
+
+  // ---- sounds ----
+  step(t,surface,vol=1,pan=0){
+    if(surface==='metal'){this.burst(t,{freq:2400,q:1.2,dur:.05,vol:.09*vol,pan});this.ring(t,{freqs:[rand(800,900),rand(1250,1400),rand(2000,2300)],q:22,vol:.07*vol,dur:.22,pan});this.tone(t,{freq:110,to:70,dur:.07,vol:.06*vol,pan});}
+    else if(surface==='wet'){this.burst(t,{type:'lowpass',freq:900,dur:.16,vol:.11*vol,pan,sweep:400});this.burst(t+.04,{freq:1800,q:3,dur:.06,vol:.03*vol,pan});}
+    else{this.burst(t,{freq:rand(1300,1700),q:1,dur:.045,vol:.08*vol,pan});this.tone(t,{freq:120,to:55,dur:.09,vol:.09*vol,pan});this.burst(t+.02,{type:'highpass',freq:4000,dur:.03,vol:.015*vol,pan});}
+  }
+  pulse(t,loud){
+    // Heartbeat: a soft sub thump, felt more than heard.
+    this.tone(t,{freq:68,to:38,dur:.16,vol:.22*loud,attack:.012,bus:this.suit});
+    this.burst(t,{type:'lowpass',freq:140,dur:.08,vol:.08*loud,bus:this.suit,buffer:this.brown});
+  }
+  click(t,i){this.burst(t,{type:'highpass',freq:2500,dur:.004,vol:.08*i,attack:.0005,bus:this.ui,pan:rand(-.3,.3)});}
+  klaxon(t){
+    const d=this.distort(6),f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=950;f.Q.value=.9;const g=this.ctx.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.06,t+.05);g.gain.setValueAtTime(.06,t+1.85);g.gain.exponentialRampToValueAtTime(.0001,t+2);
+    d.connect(f).connect(g).connect(this.world);
+    for(let i=0;i<4;i++){const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=i%2?554:440;o.connect(d);o.start(t+i*.5);o.stop(t+i*.5+.48);}
+  }
+  bell(t){for(let i=0;i<10;i++)this.ring(t+i*.06,{freqs:[612,1690,3300],q:40,vol:.05,dur:.5});}
+  whoop(t){this.tone(t,{freq:280,to:640,type:'triangle',dur:1.1,vol:.05,attack:.05});}
+  clank(){const t=this.ctx.currentTime,p=rand(-1,1);this.ring(t,{freqs:[rand(140,220),rand(330,460),rand(700,900)],q:18,vol:.09,dur:1.6,pan:p});this.burst(t,{type:'lowpass',freq:500,dur:.12,vol:.06,pan:p,buffer:this.brown});}
+  groan(){
+    const t=this.ctx.currentTime,o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(rand(38,48),t);o.frequency.linearRampToValueAtTime(rand(60,80),t+1.4);o.frequency.linearRampToValueAtTime(rand(40,52),t+3);
+    const f=this.ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=320;f.Q.value=4;const g=this.ctx.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.05,t+.8);g.gain.exponentialRampToValueAtTime(.0001,t+3.2);
+    o.connect(f).connect(g).connect(this.pan(rand(-.8,.8))).connect(this.world);o.start(t);o.stop(t+3.3);
+  }
+  breathe(t,inhale,stress){
+    // Gas mask: inhale hisses through the filter and ends on the valve click; exhale flutters the rubber.
+    const dur=inhale?1.1-stress*.45:1.3-stress*.5,vol=(.035+stress*.03);
+    if(inhale){this.burst(t,{freq:1200,q:1.4,dur,vol,attack:dur*.45,bus:this.suit,sweep:1500});this.burst(t+dur*.95,{type:'highpass',freq:3000,dur:.012,vol:.03,attack:.001,bus:this.suit});}
+    else{
+      const s=this.ctx.createBufferSource();s.buffer=this.noise;const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=520;f.Q.value=2;const g=this.ctx.createGain();this.env(g,t,vol*1.1,dur*.25,dur*.75);
+      const flutter=this.ctx.createOscillator();flutter.frequency.value=rand(18,26);const fg=this.ctx.createGain();fg.gain.value=vol*.5;flutter.connect(fg).connect(g.gain);
+      s.connect(f).connect(g).connect(this.suit);s.start(t,rand(0,2));s.stop(t+dur+.1);flutter.start(t);flutter.stop(t+dur+.1);
     }
-    if (now >= this.nextGeiger) {
-      this.click(now, .3 + temp / 130);
-      this.nextGeiger = now + Math.max(.08, .9 - temp / 160) * (.5 + Math.random());
+  }
+  cue(kind){
+    if(!this.ctx||!this.enabled)return;const t=this.ctx.currentTime;
+    switch(kind){
+      case 'beat':this.pulse(t,1.25);return;
+      case 'success':this.burst(t,{freq:2200,q:2,dur:.03,vol:.12,bus:this.ui});this.ring(t+.05,{freqs:[1046,2093,3130],q:60,vol:.06,dur:.7,bus:this.ui});return;
+      case 'reject':{const o=this.ctx.createOscillator();o.type='square';o.frequency.value=98;const f=this.ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=1100;const g=this.ctx.createGain();this.env(g,t,.06,.005,.28);o.connect(f).connect(g).connect(this.ui);o.start(t);o.stop(t+.35);return;}
+      case 'turn':for(let i=0;i<3;i++)this.burst(t+i*.035,{freq:3200,q:4,dur:.012,vol:.07,bus:this.ui});return;
+      case 'fall':this.burst(t,{type:'highpass',freq:300,dur:.9,vol:.08,sweep:2500,attack:.2});this.tone(t+.9,{freq:70,to:30,dur:.4,vol:.3});this.burst(t+.9,{type:'lowpass',freq:600,dur:.3,vol:.25,buffer:this.brown});return;
+      case 'grab':this.ring(t,{freqs:[310,742,1290],q:25,vol:.18,dur:1.2});this.burst(t,{freq:700,q:2,dur:.25,vol:.08,bus:this.suit});return;
+      case 'slip':this.burst(t,{freq:2600,q:6,dur:.45,vol:.08,sweep:700});this.ring(t+.1,{freqs:[520,1340],q:30,vol:.06,dur:.6});return;
+      case 'hit':case 'shoved':this.tone(t,{freq:90,to:40,dur:.2,vol:kind==='hit'?.35:.22,bus:this.suit});this.burst(t,{type:'lowpass',freq:900,dur:.12,vol:.15,bus:this.suit});this.burst(t+.02,{freq:3000,q:1,dur:.08,vol:.04});return;
+      case 'vent':for(let i=0;i<9;i++)this.ring(t+i*rand(.06,.11),{freqs:[rand(1100,1300),rand(1800,2100),rand(2600,3000)],q:20,vol:.05,dur:.15,pan:rand(-.5,.5)});return;
+      case 'pulse':{const o=this.ctx.createOscillator(),m=this.ctx.createOscillator(),mg=this.ctx.createGain();o.frequency.value=220;m.frequency.value=37;mg.gain.value=180;m.connect(mg).connect(o.frequency);const g=this.ctx.createGain();this.env(g,t,.07,.05,1.4);o.connect(g).connect(this.world);o.start(t);m.start(t);o.stop(t+1.6);m.stop(t+1.6);return;}
+      case 'radio':this.burst(t,{type:'highpass',freq:1800,dur:.35,vol:.08,bus:this.ui});this.tone(t+.35,{freq:1400,type:'square',dur:.06,vol:.02,bus:this.ui});this.burst(t+.42,{freq:1000,q:.6,dur:.6,vol:.03,bus:this.ui});return;
+      case 'lunge':{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(260,t);o.frequency.exponentialRampToValueAtTime(1100,t+.18);o.frequency.exponentialRampToValueAtTime(380,t+.45);const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1400;f.Q.value=3;const g=this.ctx.createGain();this.env(g,t,.1,.02,.45);o.connect(this.distort(4)).connect(f).connect(g).connect(this.world);o.start(t);o.stop(t+.55);this.burst(t,{type:'lowpass',freq:300,dur:.3,vol:.15,buffer:this.brown});return;}
+      default:this.burst(t,{freq:900,dur:.1,vol:.05});
     }
+  }
+  // Specimen footfall: heavy, wet, and somewhere off to one side.
+  thud(volume,pan=0){if(!this.ctx||!this.enabled)return;const t=this.ctx.currentTime;this.tone(t,{freq:58,to:32,dur:.28,vol:.32*volume,pan});this.burst(t,{type:'lowpass',freq:320,dur:.22,vol:.2*volume,pan,buffer:this.brown});this.burst(t+.03,{freq:900,q:4,dur:.08,vol:.05*volume,pan});}
+
+  update(dt,{moving,temp,pressure,holdingBreath,position={x:0,y:0,z:0},alarm={id:'normal'},near=0}){
+    if(!this.ctx||!this.enabled)return;
+    const t=this.ctx.currentTime,p=position;
+    const stress=Math.min(1,(moving?.25:0)+Math.max(0,temp-65)/70+Math.max(0,pressure-65)/80+near*.6+(holdingBreath?.2:0));
+    // Where we are decides the machinery bed and what our boots hit.
+    const sewer=p.z>5&&Math.abs(p.x)<18,hangar=p.x>22&&p.z>12,incinerator=p.x>15&&p.x<23&&p.z<-5,reactor=p.z<-5&&Math.abs(p.x)<8;
+    const hall=Math.abs(p.x)>25&&Math.abs(p.x)<31;
+    const set=(layer,v)=>this.layers[layer].g.gain.setTargetAtTime(v,t,.5);
+    set('fan',incinerator?.05:sewer?.015:hangar?.012:.03);set('steam',sewer?.012:pressure>50?.01:.003);set('furnace',incinerator?.09:reactor?.04:0);
+    set('water',sewer?(p.y<-2?.06:.02):0);set('shaft',hall||hangar?.08:0);set('rumble',hangar?.2:.12);
+    this.growl.gain.setTargetAtTime(near*.12,t,.4);
+    const surface=p.y<-2.5&&sewer?'wet':(hangar||sewer||(hall&&Math.abs(p.x)>28))?'metal':'concrete';
+    if(moving&&t>this.nextStep){this.step(t,surface,1,this.nextStep%2?-.12:.12);this.nextStep=t+.42;}
+    if(sewer&&t>this.nextDrip){this.tone(t,{freq:rand(1100,1700),to:rand(700,900),dur:.09,vol:.03,pan:rand(-.7,.7)});this.nextDrip=t+rand(1.2,3.8);}
+    if(t>this.nextClank){this.clank();this.nextClank=t+rand(7,18);}
+    if(t>this.nextGroan){this.groan();this.nextGroan=t+rand(14,30);}
+    if(alarm.id!==this.alarmId){this.alarmId=alarm.id;this.nextAlarm=t;}
+    if(alarm.id!=='normal'&&t>=this.nextAlarm){
+      if(alarm.id==='reactor'){this.klaxon(t);this.nextAlarm=t+3;}
+      else if(alarm.id==='coolant'){this.whoop(t);this.nextAlarm=t+4;}
+      else if(alarm.id==='power'){this.bell(t);this.nextAlarm=t+5;}
+      else{this.ring(t,{freqs:[880,1320],q:50,vol:.04,dur:1});this.nextAlarm=t+9;}
+    }
+    // Breathing alternates inhale/exhale at a rate set by stress; holding it ends in a gasp.
+    if(holdingBreath){this.wasHolding=true;this.breath.until=t+.2;}
+    else{if(this.wasHolding){this.wasHolding=false;this.burst(t,{freq:1300,q:1,dur:.5,vol:.07,attack:.05,bus:this.suit});this.breath={phase:'in',until:t+.6};}
+      if(t>=this.breath.until){const inhale=this.breath.phase==='out';this.breathe(t,inhale,stress);this.breath={phase:inhale?'in':'out',until:t+(inhale?1.15:1.35)-stress*.55};}}
+    const interval=60/(62+stress*70);
+    if(this.nextBeat<t-.3)this.nextBeat=t;
+    if(this.nextBeat<=t+.05){this.pulse(this.nextBeat,.6+stress*.6);this.pulse(this.nextBeat+.2,.35+stress*.4);if(this.coarsePointer.matches&&navigator.vibrate)navigator.vibrate(12);this.nextBeat+=interval;}
+    // Geiger counter: random clicks, faster with heat and with the specimen close.
+    if(t>=this.nextGeiger){this.click(t,.5+temp/160+near*.5);this.nextGeiger=t+(-Math.log(Math.random()))*Math.max(.03,.7-temp/180-near*.5);}
   }
 }
