@@ -35,7 +35,7 @@ export function buildWings(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,h
    const span=long?w:d,count=Math.max(1,Math.floor(span/7));
    for(let i=0;i<count;i++){
     const t=(i+.5)/count,x=long?s.minX+w*t:cx-(s.kind==='hall'?w/2-1.2:0),z=long?cz:s.minZ+d*t;
-    lamp(x,s.h-.15,z,seed+i*3,(seed+i)%3===0,s.kind==='tunnel'?7:9,s.kind==='tunnel'?5:7);
+    lamp(x,s.h-.15,z,seed+i*3,(seed+i)%3===0,s.kind==='tunnel'?8:10,s.kind==='tunnel'?7:9);
    }
    // Wall ribs every few metres break up long corridors.
    for(let t=1.5;t<span;t+=3){
@@ -43,7 +43,7 @@ export function buildWings(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,h
     else{for(const side of [s.minX+.14,s.maxX-.14])if(!(s.kind==='hall'&&((side>0)===(s.minX>0))))box(.08,s.h,.16,side,s.h/2,s.minZ+t,dark);}
    }
   }else{
-   lamp(cx-w/4,s.h-.15,cz,seed,seed%2===0,10,8);lamp(cx+w/4,s.h-.15,cz,seed+5,false,10,8);
+   lamp(cx-w/4,s.h-.15,cz,seed,seed%2===0,12,11);lamp(cx+w/4,s.h-.15,cz,seed+5,false,12,11);
   }
   seed+=7;
  }

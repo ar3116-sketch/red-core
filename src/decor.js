@@ -87,11 +87,11 @@ export function decorate(scene){
  for(const s of spaces){
   const style=STYLE[s.id];if(!style?.floor)continue;
   const mat=floorMats[style.floor]??=new THREE.MeshLambertMaterial({map:floorTexture(style.floor)});
-  const w=s.maxX-s.minX,d=s.maxZ-s.minZ,plane=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);plane.rotation.x=-Math.PI/2;plane.position.set((s.minX+s.maxX)/2,.004,(s.minZ+s.maxZ)/2);scene.add(plane);
+  const w=s.maxX-s.minX,d=s.maxZ-s.minZ,plane=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);plane.rotation.x=-Math.PI/2;plane.position.set((s.minX+s.maxX)/2,.012,(s.minZ+s.maxZ)/2);scene.add(plane);
   if(style.rug){
    const map=rugTexture(style.rug),long=w>d,rw=style.rug==='runner'?(long?w*.8:1.6):3.4,rd=style.rug==='runner'?(long?1.6:d*.8):2.4;
-   const rug=new THREE.Mesh(new THREE.PlaneGeometry(rw,rd),new THREE.MeshLambertMaterial({map}));rug.rotation.x=-Math.PI/2;if(style.rug==='runner'&&long)rug.rotation.z=Math.PI/2;
-   rug.position.set((s.minX+s.maxX)/2,.008,(s.minZ+s.maxZ)/2+(s.id==='barracks'?-1.8:0));if(style.rug==='runner'&&long){rug.geometry=new THREE.PlaneGeometry(rd,rw);}scene.add(rug);
+   const rug=new THREE.Mesh(new THREE.BoxGeometry(rw,.02,rd),new THREE.MeshLambertMaterial({map}));if(style.rug==='runner'&&long)rug.rotation.y=Math.PI/2;
+   rug.position.set((s.minX+s.maxX)/2,.03,(s.minZ+s.maxZ)/2+(s.id==='barracks'?-1.8:0));if(style.rug==='runner'&&long){rug.geometry=new THREE.BoxGeometry(rd,.02,rw);}scene.add(rug);
   }
  }
  // Posters: on wall faces with clear floor in front, away from the ends of each segment.

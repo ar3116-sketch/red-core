@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import {industrialMetal,dressCeiling} from './ceiling.js';
 import {readings,coolantTarget} from '../shared/coolant.js';
+const CHERENKOV=new THREE.Color(0x19e6ff);
 export function buildReactor(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,hazard,glow}){
- const blue=new THREE.MeshBasicMaterial({color:0x458eae});
+ const blue=new THREE.MeshBasicMaterial({color:0x3f5a52});
  const lining=wall.clone();lining.side=THREE.DoubleSide;
  const outline=new THREE.Shape();outline.moveTo(-8,15);outline.lineTo(8,15);outline.lineTo(8,29);outline.lineTo(-8,29);outline.closePath();
  const hole=new THREE.Path();hole.absarc(0,22,3.72,0,Math.PI*2,true);outline.holes.push(hole);
@@ -20,13 +21,13 @@ export function buildReactor(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust
  }
  ring(4.04,.035,.58,rust);ring(4.04,.045,1.05,rust);
  for(let i=0;i<24;i++){const a=i*Math.PI/12;box(.07,1.1,.07,Math.cos(a)*4.04,.55,-22+Math.sin(a)*4.04,steel);}
- const fuel=new THREE.MeshBasicMaterial({color:0x66b9d0});
+ const fuel=new THREE.MeshBasicMaterial({color:0x6f8a78});
  for(let x=-3;x<=3;x++)for(let z=-3;z<=3;z++){
   box(.39,.55,.39,x*.5,-5.03,-22+z*.5,steel);
   for(let j=0;j<3;j++)box(.035,.04,.35,x*.5-.12+j*.12,-4.73,-22+z*.5,fuel);
  }
- const water=new THREE.Mesh(new THREE.CircleGeometry(3.64,24),new THREE.MeshBasicMaterial({color:0x143d51,transparent:true,opacity:.24,depthWrite:false}));water.rotation.x=-Math.PI/2;water.position.set(0,-.8,-22);scene.add(water);
- const coreLight=new THREE.PointLight(0x5ca9cc,22,15,1.7);coreLight.position.set(0,.6,-22);scene.add(coreLight);
+ const water=new THREE.Mesh(new THREE.CircleGeometry(3.64,24),new THREE.MeshBasicMaterial({color:0x1a2a24,transparent:true,opacity:.24,depthWrite:false}));water.rotation.x=-Math.PI/2;water.position.set(0,-.8,-22);scene.add(water);
+ const coreLight=new THREE.PointLight(0x9a8a5a,16,15,1.7);coreLight.position.set(0,.6,-22);scene.add(coreLight);
  for(const side of [-1,1]){
   pipe(.3,12,side*7.4,4.6,-22,rust);pipe(.18,12,side*6.9,4.6,-22,steel);
   const riser=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,3.9,8),steel);riser.position.set(side*2.5,2.1,-24.7);scene.add(riser);
@@ -68,7 +69,8 @@ export function buildReactor(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust
  }
  let clock=0,history=[];
  return {update(dt,time,temp,pressure,blackout,coolant){
-  coreLight.intensity=19+Math.sin(time*1.7)*2;fuel.color.setHex(temp>=85?0xaabcbd:0x66b9d0);
+  // Cherenkov glow only appears as the core runs hot: cyan here always means danger.
+  const hot=Math.max(0,Math.min(1,(temp-70)/30));coreLight.intensity=(22+Math.sin(time*1.7)*2)*(1+hot*1.8);coreLight.color.setHex(0x9a8a5a).lerp(CHERENKOV,hot);fuel.color.setHex(0x6f8a78).lerp(CHERENKOV,hot);
   needles.forEach((n,i)=>n.rotation.z=1.1-(i%2?pressure:temp)*.022);
   clock+=dt;if(clock<.25)return;clock=0;history.push(temp);if(history.length>60)history.shift();
   const flow=readings(coolant.intake,coolant.bypass),target=coolantTarget(coolant);

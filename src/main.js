@@ -49,7 +49,8 @@ scene.background=new THREE.Color(0x080d0a);
 scene.fog=new THREE.Fog(0x080d0a,7,46);
 const camera=new THREE.PerspectiveCamera(72,4/3,.1,80);
 camera.rotation.order='YXZ';
-scene.add(new THREE.AmbientLight(0x819478,.32));
+scene.add(new THREE.AmbientLight(0x8f9478,.5));
+scene.add(new THREE.HemisphereLight(0xb8a070,0x1a1f16,.35));
 const lamp=new THREE.PointLight(0xffb64a,5,17);lamp.position.set(0,2.7,-10);scene.add(lamp);
 const emergency=new THREE.PointLight(0xc0602a,.8,9);emergency.position.set(10,2.5,-10);scene.add(emergency);
 const bunker=buildBunker(scene);
@@ -464,6 +465,8 @@ function loop(now){
  bunker.renderFeeds(renderer,now,tubesState.powered,position,selectLights,{before:()=>specimenView.beginFeed(),after:()=>specimenView.endFeed()});
  selectLights(camera.position);
  ps1.render(scene,camera,{danger,blackout,time:now/1000},()=>{if(inShift&&!spec&&me.state==='ok')firstPerson.render(renderer);});
+ // Dev screenshot capture: copy this frame, upscaled with hard pixels, to the dev server.
+ if(window.__capture&&now>(window.__captureAfter||0)){const name=window.__capture;window.__capture=null;const up=document.createElement('canvas');up.width=canvas.width*3;up.height=canvas.height*3;const g=up.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(canvas,0,0,up.width,up.height);fetch('/__shot?name='+name,{method:'POST',body:up.toDataURL('image/png')}).then(()=>{window.__captured=name;});}
 }
 showHome();
 requestAnimationFrame(loop);

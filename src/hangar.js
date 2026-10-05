@@ -52,7 +52,7 @@ export function buildHangar(scene,{box,roomSign,steel,dark,rust,hazard}){
  box(W-1,.8,.8,cx,top-2,24,yellow);box(1.4,1,1.2,36,top-2.8,24,yellow);beam(new THREE.Vector3(36,top-3.3,24),new THREE.Vector3(36,-1,24),.03,dark);box(.5,.4,.3,36,-1.2,24,steel);
  for(const [x,z] of [[31,20],[53,20],[31,40],[53,40],[42,24],[42,38]]){
   box(1.2,.3,1.2,x,top-1.6,z,dark);const bulb=new THREE.Mesh(new THREE.CylinderGeometry(.45,.6,.2,8),new THREE.MeshBasicMaterial({color:0xe0b56a}));bulb.position.set(x,top-1.85,z);scene.add(bulb);
-  const light=new THREE.PointLight(0xe0a75e,26,26,1.4);light.position.set(x,top-2.3,z);scene.add(light);
+  const light=new THREE.PointLight(0xe0a75e,70,34,1.3);light.position.set(x,top-2.3,z);scene.add(light);
  }
  // The orbiter: white fuselage, black belly and leading edges, delta wings, tail fin.
  const buran=new THREE.Group();buran.position.set(BURAN.x,floor+3.1,BURAN.z);scene.add(buran);
@@ -60,7 +60,6 @@ export function buildHangar(scene,{box,roomSign,steel,dark,rust,hazard}){
  add(new THREE.CylinderGeometry(1.7,1.7,15,12),white,0,0,1,Math.PI/2);
  add(new THREE.CylinderGeometry(1.72,1.72,15,12,1,true,Math.PI*1.65,Math.PI*.7),black,0,-.02,1,Math.PI/2);
  add(new THREE.SphereGeometry(1.7,12,8,0,Math.PI*2,0,Math.PI/2),white,0,0,-6.5,-Math.PI/2).scale.set(1,2.4,1);
- add(new THREE.SphereGeometry(1.71,12,8,0,Math.PI*2,0,Math.PI/2),black,0,-.05,-6.5,-Math.PI/2).scale.set(1,2.4,.6);
  for(const x of [-.7,0,.7])add(new THREE.BoxGeometry(.45,.3,.05),black,x,1.25,-7.4,-.5);
   for(const side of [-1,1]){
   // Each wing is its own mirrored outline so neither ends up with inside-out faces.

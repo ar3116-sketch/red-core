@@ -36,8 +36,9 @@ float hash(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
 void main(){
  vec3 c=tap(vec2(0.)),h=hsv(c);float l=luma(c);
  float cy=smoothstep(.075,.035,abs(h.x-.51))*smoothstep(.3,.55,h.y)*smoothstep(.06,.18,h.z);
- vec3 g=mix(vec3(l),c,.6);
- g=pow(g,vec3(.97,1.04,1.5))*vec3(1.05,.97,.78);
+ // Sodium-vapour warmth without flattening every room into the same olive: keep most saturation.
+ vec3 g=mix(vec3(l),c,.88);
+ g=pow(g,vec3(.92,.98,1.18))*vec3(1.08,1.,.86)*1.12;
  g=mix(g,g*g*(3.-2.*g),.25);
  g=g*.955+vec3(.04,.034,.008);
  vec3 o=mix(g,c,cy);

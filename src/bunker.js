@@ -102,7 +102,7 @@ export function buildBunker(scene) {
       const bulb=glow.clone();bulbs.push(bulb);box(1.7,.09,.48,room.x,3.32,room.z+z,bulb);
       box(1.9,.12,.62,room.x,3.4,room.z+z,steel);
     }
-    const light=new THREE.PointLight(0xd3a264,8,10,1.6);light.position.set(room.x,2.7,room.z);scene.add(light);roomLamps.push({light,bulbs,seed:roomLamps.length,damaged:room.id==='pumps'||room.id==='control'});
+    const light=new THREE.PointLight(0xd3a264,12,12,1.5);light.position.set(room.x,2.7,room.z);scene.add(light);roomLamps.push({light,bulbs,seed:roomLamps.length,damaged:room.id==='pumps'||room.id==='control'});
     // Overhead pipes remain above head height, leaving each doorway clear.
     for(const side of [-1,1])pipe(.10,9.5,room.x+side*3.6,3.02,room.z,side<0?coolant:rust);
     box(9.8,.10,.1,room.x,2.82,room.z-4.8,tint);
@@ -224,7 +224,7 @@ export function buildBunker(scene) {
     safeAngle += ((safeOpened?-1.45:0)-safeAngle)*Math.min(1,dt*5);
     safeDoor.rotation.y=safeAngle;
     elapsed += dt;reactor.update(dt,elapsed,temp,pressure,blackout,coolantState);equipment.update(dt);sewer.update(elapsed,blackout);wings.update(elapsed,blackout,extra.liftOpen||0,extra.alarm||false);facility.update(dt,elapsed,cameraOpened,tubesPowered);
-    for(const l of roomLamps){const voltage=blackout?.07:lampVoltage(elapsed,l.seed,l.damaged);l.light.intensity=8*voltage;for(const b of l.bulbs)b.color.copy(glow.color).multiplyScalar(voltage);}
+    for(const l of roomLamps){const voltage=blackout?.07:lampVoltage(elapsed,l.seed,l.damaged);l.light.intensity=12*voltage;for(const b of l.bulbs)b.color.copy(glow.color).multiplyScalar(voltage);}
     screenClock += dt;
     if (screenClock >= .12) {
       screenClock = 0;
