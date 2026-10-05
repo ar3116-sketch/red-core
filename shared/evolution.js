@@ -2,18 +2,18 @@
 // multiplayer monster simulation will use the same rules when implemented.
 export const SLOTS = ['movement', 'senses', 'hide'];
 export const PARTS = [
- {id:'crusher',slot:'movement',name:'BREAKER ARMS',gain:'Pry heavy doors in 5 seconds. Keep the breach open.',cost:'Loud breach; 15% slower movement.',counter:'Crew can hear the approach and abandon the door.',route:'door',speed:.85,noise:1.4},
- {id:'tentacles',slot:'movement',name:'SOFT TENDRILS',gain:'Squeeze through service vents to flank rooms.',cost:'3 seconds to enter or exit; no attacks inside vents.',counter:'Vent rattles warn anyone at the exit.',route:'vent',speed:1,noise:1},
- {id:'mantis',slot:'movement',name:'CEILING HOOKS',gain:'Climb marked overhead rails for an ambush.',cost:'2 seconds to descend before attacking; exposed overhead.',counter:'Work lamps reveal the ceiling silhouette.',route:'rail',speed:1,noise:1},
- {id:'leaper',slot:'movement',name:'SPRING HAUNCHES',gain:'Leap broken catwalk gaps and close open distance.',cost:'Loud landing; 1.5 second recovery and 10 second cooldown.',counter:'Sharp turns and low ceilings deny the leap.',route:'gap',speed:1,noise:1.2},
- {id:'thermal',slot:'senses',name:'THERMAL PITS',gain:'See living heat in darkness within 8 metres.',cost:'Steam and hot machinery mask targets. No wall vision.',counter:'Crew can hide beside hot equipment.'},
- {id:'antennae',slot:'senses',name:'VIBRATION COMB',gain:'Sense running footsteps through one connected floor.',cost:'No stationary or crouched targets; pumps cause interference.',counter:'Walk slowly or move during machinery pulses.'},
- {id:'echo',slot:'senses',name:'ECHO FANS',gain:'Pulse reveals nearby geometry and moving silhouettes.',cost:'Pulse is audible; 2 second snapshot, 12 second cooldown.',counter:'Crew can bait a pulse and move after it fades.'},
- {id:'scent',slot:'senses',name:'SCENT PALPS',gain:'Follow a target\'s last 12 seconds of trail.',cost:'Trail is delayed and washes away at decontamination.',counter:'Cross a wash station or split routes.'},
- {id:'plates',slot:'hide',name:'LAYERED CHITIN',gain:'Reduce stun duration by 35%.',cost:'10% slower movement; shell scraping increases noise.',counter:'Keep distance and kite the heavier creature.',speed:.9,noise:1.2},
- {id:'veil',slot:'hide',name:'MIMETIC SKIN',gain:'Blend into shadow after standing still for 3 seconds.',cost:'Movement breaks concealment; cameras still reveal you.',counter:'Sweep hiding places with light or CCTV.'},
- {id:'sacs',slot:'hide',name:'MIST BLADDERS',gain:'Make a 4 second sight-blocking cloud to retreat.',cost:'Cloud also blocks your thermal sense; 20 second cooldown.',counter:'Listen for the retreat; do not chase into the cloud.'},
- {id:'insulation',slot:'hide',name:'CERAMIC MANTLE',gain:'Cross steam bursts with 70% less hazard damage.',cost:'Bright warm outline in IR; no protection against stuns.',counter:'IR equipment tracks you through the steam.'},
+ {id:'crusher',slot:'movement',name:'BREAKER ARMS',gain:'Pry sealed blast doors and the camera door. Escape the lift in 3s, not 6.',cost:'Too bulky for vents. 15% slower.',counter:'You hear it coming: heavy steps carry further.',route:'door',speed:.85,noise:1.4},
+ {id:'tentacles',slot:'movement',name:'SOFT TENDRILS',gain:'Keep vent access at any size. Crawl 40% faster.',cost:'Lunge cooldown +3s.',counter:'Vent rattles warn anyone at the exit grate.',route:'vent',speed:1,noise:1},
+ {id:'mantis',slot:'movement',name:'CEILING HOOKS',gain:'Lunge reaches 2.7m instead of 1.9m.',cost:'Lunge reveals you a little longer.',counter:'Keep more than three steps away from shadows.',route:'rail',speed:1,noise:1},
+ {id:'leaper',slot:'movement',name:'SPRING HAUNCHES',gain:'SHIFT: sprint at double speed for 2s.',cost:'10s cooldown; loud landing.',counter:'Sharp turns break the sprint.',route:'gap',speed:1,noise:1.2},
+ {id:'thermal',slot:'senses',name:'THERMAL PITS',gain:'See living heat through darkness within 10m.',cost:'No wall vision.',counter:'Break line of sight.'},
+ {id:'antennae',slot:'senses',name:'VIBRATION COMB',gain:'Sense anyone moving within 20m, through walls.',cost:'Still targets vanish.',counter:'Stop moving.'},
+ {id:'echo',slot:'senses',name:'ECHO FANS',gain:'Q: pulse reveals everyone within 16m for 2s.',cost:'Pulse is audible to them; 12s cooldown.',counter:'Move after the pulse fades.'},
+ {id:'scent',slot:'senses',name:'SCENT PALPS',gain:'Follow the nearest target\'s last 10 seconds of trail.',cost:'Only one trail at a time.',counter:'Split up and double back.'},
+ {id:'plates',slot:'hide',name:'LAYERED CHITIN',gain:'Shoves cannot move you. Survive one shotgun blast.',cost:'Shell scraping: louder steps.',counter:'Do not try to push it into a shaft.',speed:.95,noise:1.2},
+ {id:'veil',slot:'hide',name:'MIMETIC SKIN',gain:'Fainter shadow. Cameras lose you when still.',cost:'Lunging reveals you for longer.',counter:'Watch the floor, not the air.'},
+ {id:'sacs',slot:'hide',name:'MIST BLADDERS',gain:'R: burst a 5s sight-blocking cloud.',cost:'20s cooldown.',counter:'Do not chase into the cloud.'},
+ {id:'insulation',slot:'hide',name:'CERAMIC MANTLE',gain:'Reactor surges no longer outline you in steam.',cost:'Brighter on CCTV.',counter:'Watch the cameras.'},
 ];
 export function draft(seed) {
  let h=2166136261;for(const c of String(seed))h=Math.imul(h^c.charCodeAt(0),16777619);

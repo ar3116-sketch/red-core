@@ -94,7 +94,10 @@ export const SOLIDS=[
  ...WING_FIXTURES.map(f=>({id:f.id,minX:f.x-f.w/2,maxX:f.x+f.w/2,minZ:f.z-f.d/2,maxZ:f.z+f.d/2,minY:0,maxY:f.h})),
 ];
 const OPEN_SOLIDS=SOLIDS.filter(s=>s.id!=='camera-door');
-export const solidsForState=cameraOpen=>cameraOpen?OPEN_SOLIDS:SOLIDS;
+const DOOR_SOLIDS=[{id:'east-door',minX:15.25,maxX:15.65,minZ:-4,maxZ:-1,minY:0,maxY:2.8},{id:'west-door',minX:-15.65,maxX:-15.25,minZ:-12,maxZ:-9,minY:0,maxY:2.8}];
+const SEALED=[SOLIDS.concat(DOOR_SOLIDS),OPEN_SOLIDS.concat(DOOR_SOLIDS)];
+// Camera door open/closed, tunnel blast doors sealed by sabotage.
+export const solidsForState=(cameraOpen,sealed=false)=>sealed?SEALED[cameraOpen?1:0]:cameraOpen?OPEN_SOLIDS:SOLIDS;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 export function overlapsSolid(x,z,box,radius=PLAYER_RADIUS) {
   if(box.radius)return Math.hypot(x-box.x,z-box.z)<box.radius+radius-1e-8;
