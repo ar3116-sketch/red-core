@@ -3,7 +3,7 @@ export const TOOL_NAMES={wrench:'PIPE WRENCH',rope:'RESCUE ROPE'};
 export const TOOL_STARTS=[
  {id:'wrench-shop',kind:'wrench',x:-10.7,y:1.12,z:2.26,floor:0},
  {id:'rope-shop',kind:'rope',x:-9.15,y:1.13,z:2.35,floor:0},
- {id:'wrench-pumps',kind:'wrench',x:-13.7,y:1.72,z:-9.6,floor:0},
+ {id:'wrench-pumps',kind:'wrench',x:-13.3,y:1.72,z:-5.75,floor:0},
  {id:'rope-exit',kind:'rope',x:12.6,y:1.52,z:-3.75,floor:0},
  {id:'wrench-basin',kind:'wrench',x:-12.8,y:-1.58,z:28.3,floor:-3.2},
 ];

@@ -3,7 +3,7 @@ export const DETAIL_FIXTURES=[
  {id:'shop-spares',kind:'parts',x:-12.2,z:-3.8,y:0,w:1.7,d:.7,h:1.6},
  {id:'control-logs',kind:'archive',x:3.5,z:-3.8,y:0,w:1.4,d:.65,h:1.8},
  {id:'exit-kit',kind:'rescue',x:12.6,z:-3.8,y:0,w:1.6,d:.7,h:1.4},
- {id:'pump-spares',kind:'parts',x:-13.7,z:-10,y:0,w:.7,d:1.8,h:1.6},
+ {id:'pump-spares',kind:'parts',x:-13.3,z:-5.75,y:0,w:1.8,d:.7,h:1.6,face:-1},
  {id:'reactor-kit',kind:'meters',x:3.6,z:-13.8,y:0,w:1.6,d:.7,h:1.4},
  {id:'lab-cart',kind:'samples',x:7.2,z:-7.1,y:0,w:1.3,d:.7,h:1.05},
  {id:'camera-tapes',kind:'archive',x:-18.2,z:2.35,y:0,w:1.6,d:.65,h:1.8},

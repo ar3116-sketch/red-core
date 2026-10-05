@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><title>ps1 test</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#c{position:fixed;inset:0;width:100%;height:100%;image-rendering:pixelated}#ui{position:fixed;top:8px;left:8px;color:#fff;font:12px monospace;background:#000a;padding:6px;z-index:2}</style></head>
+<body><canvas id="c"></canvas><div id="ui">danger <input id="danger" type="range" min="0" max="1" step=".01" value="0"> <label><input id="post" type="checkbox" checked>post</label> <label><input id="aff" type="checkbox">affine(reload)</label> <label><input id="spin" type="checkbox" checked>move</label> snap <input id="snap" type="range" min=".25" max="1" step=".25" value=".5"></div>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {applyPS1Materials,autoPS1,createPS1Post,ps1Res} from './src/ps1.js';
+import {createFirstPerson} from './src/first-person.js';
+const q=new URLSearchParams(location.search);
+window.__errors=[];const ce=console.error;console.error=(...a)=>{window.__errors.push(a.join(' ').slice(0,2000));ce(...a);};
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:false,preserveDrawingBuffer:true});renderer.setPixelRatio(1);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x080d0a);scene.fog=new THREE.Fog(0x080d0a,7,46);
+const camera=new THREE.PerspectiveCamera(72,4/3,.1,80);camera.rotation.order='YXZ';
+scene.add(new THREE.AmbientLight(0x819478,.32));const lamp=new THREE.PointLight(0xffb64a,5,17);lamp.position.set(0,2.7,-4);scene.add(lamp);
+const c2=document.createElement('canvas');c2.width=c2.height=32;const g=c2.getContext('2d');for(let y=0;y<8;y++)for(let x=0;x<8;x++){g.fillStyle=(x+y)%2?'#8a8a7a':'#3c4038';g.fillRect(x*4,y*4,4,4);}
+const tex=new THREE.CanvasTexture(c2);tex.magFilter=tex.minFilter=THREE.NearestFilter;tex.colorSpace=THREE.SRGBColorSpace;tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+const floorTex=tex.clone();floorTex.repeat.set(10,10);floorTex.needsUpdate=true;
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshLambertMaterial({map:floorTex}));floor.rotation.x=-Math.PI/2;scene.add(floor);
+const wall=new THREE.Mesh(new THREE.BoxGeometry(12,3,.3),new THREE.MeshStandardMaterial({map:tex,roughness:.9}));wall.position.set(0,1.5,-8);scene.add(wall);
+for(let i=0;i<4;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),[new THREE.MeshLambertMaterial({map:tex,color:0xc9b48a}),new THREE.MeshBasicMaterial({map:tex}),new THREE.MeshPhongMaterial({color:0xa04030}),new THREE.MeshStandardMaterial({color:0x8899aa})][i]);b.position.set(-3+i*2,.5,-4);scene.add(b);}
+const cyan=new THREE.Mesh(new THREE.SphereGeometry(.45,12,8),new THREE.MeshStandardMaterial({color:0x003038,emissive:0x19e6ff,emissiveIntensity:1}));cyan.position.set(2.2,1.6,-5);scene.add(cyan);
+// gradient strip to show dithering
+const gc=document.createElement('canvas');gc.width=256;gc.height=1;const gg=gc.getContext('2d');const gr=gg.createLinearGradient(0,0,256,0);gr.addColorStop(0,'#000');gr.addColorStop(1,'#fff');gg.fillStyle=gr;gg.fillRect(0,0,256,1);
+const gt=new THREE.CanvasTexture(gc);gt.colorSpace=THREE.SRGBColorSpace;const strip=new THREE.Mesh(new THREE.PlaneGeometry(6,.8),new THREE.MeshBasicMaterial({map:gt,fog:false}));strip.position.set(0,2.6,-7.8);scene.add(strip);
+let mixer;
+new GLTFLoader().load('/assets/ozk-v3.glb',gltf=>{const m=gltf.scene;m.position.set(-1,0,-3);scene.add(m);mixer=new THREE.AnimationMixer(m);const clip=gltf.animations.find(c=>c.name==='walk')||gltf.animations[0];if(clip)mixer.clipAction(clip).play();window.__gltf=true;if(!q.has('auto'))applyPS1Materials(m,{affine:q.has('aff')});},undefined,e=>window.__errors.push('gltf '+e));
+const fp=createFirstPerson(scene);fp.setHeld('wrench');
+if(q.has('auto'))autoPS1({affine:q.has('aff')});else applyPS1Materials(scene,{affine:q.has('aff')});
+document.getElementById('aff').checked=q.has('aff');
+const post=createPS1Post(renderer);window.__post=post;window.__ps1Res=ps1Res;window.__renderer=renderer;
+function resize(){const aspect=Math.max(.2,canvas.clientWidth/Math.max(1,canvas.clientHeight)),h=aspect>=1?Math.round(384/aspect):384;renderer.setSize(Math.max(1,Math.round(h*aspect)),h,false);camera.aspect=aspect;camera.updateProjectionMatrix();fp.resize(aspect);}
+new ResizeObserver(resize).observe(canvas);resize();
+const clock=new THREE.Clock();let t=0;window.__frames=0;window.__freeze=false;
+const step=window.__step=()=>{
+ const dt=Math.min(.05,clock.getDelta());if(!window.__freeze)t+=dt;
+ const spin=document.getElementById('spin').checked?t*.05:0;
+ camera.position.set(Math.sin(spin)*1.2+(window.__dx||0),1.6,2+Math.cos(spin)*.3);camera.rotation.set(-.08,spin*.4,0);
+ mixer?.update(dt);fp.update(dt,{position:camera.position.clone(),yaw:camera.rotation.y,pitch:camera.rotation.x,moving:false,holdingBreath:false,blackout:false,menuOpen:false});
+ post.options.snap=window.__snap??+document.getElementById('snap').value;
+ const danger=+(q.get('danger')??document.getElementById('danger').value);
+ if(document.getElementById('post').checked)post.render(scene,camera,{danger,time:t},()=>fp.render(renderer));
+ else{ps1Res.value.set(renderer.domElement.width,renderer.domElement.height).multiplyScalar(post.options.snap);renderer.setRenderTarget(null);renderer.render(scene,camera);fp.render(renderer);}
+ window.__frames++;
+};renderer.setAnimationLoop(step);
+document.getElementById('aff').onchange=e=>{const p=new URLSearchParams(location.search);e.target.checked?p.set('aff',1):p.delete('aff');location.search=p;};
+</script></body></html>

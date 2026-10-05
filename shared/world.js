@@ -2,6 +2,7 @@ import {DETAIL_FIXTURES} from './detail-layout.js';
 import {CORE_FIXTURES,CORE_WELL} from './reactor.js';
 import { SEWER_SURFACES,SEWER_COLLIDERS,onSurface,surfaceY } from './sewer.js';
 import { CONSOLE_POSITION } from './constants.js';
+import {WING_WALLS,WING_SURFACES,WING_FIXTURES,SHAFT_COLLIDERS,wingAt} from './wings.js';
 
 export const ROOMS = [
  {id:'workshop',name:'WORKSHOP',x:-10,z:0,color:0x9b8653},
@@ -20,10 +21,10 @@ export const DOORS = [
  {x:0,z:-5,axis:'z',a:'control',b:'reactor'},
  {x:10,z:-5,axis:'z',a:'extraction',b:'containment'},
 ];
-export function roomAt(x,z) {return z< -15?{id:'core',name:'REACTOR CORE'}:x<-15?{id:'cameras',name:'CAMERA ROOM'}:x>15?{id:'incinerator',name:'INCINERATOR'}:z>5?{id:'sewer',name:z>37?'DRAIN TUNNEL':'SEWER CHAMBER'}:ROOMS.find(r=>Math.abs(x-r.x)<=5&&Math.abs(z-r.z)<=5);}
+export function roomAt(x,z) {const wing=wingAt(x,z);if(wing)return wing;return z< -15?{id:'core',name:'REACTOR CORE'}:x<-15?{id:'cameras',name:'CAMERA ROOM'}:x>15?{id:'incinerator',name:'INCINERATOR'}:z>5?{id:'sewer',name:z>37?'DRAIN TUNNEL':'SEWER CHAMBER'}:ROOMS.find(r=>Math.abs(x-r.x)<=5&&Math.abs(z-r.z)<=5);}
 export const WALLS = [
- {x:-15,z:-8.85,w:.22,d:12.3},{x:-15,z:2.35,w:.22,d:5.3},
- {x:15,z:-13.1,w:.22,d:3.8},{x:15,z:-1.9,w:.22,d:13.8},
+ {x:-15,z:-13.5,w:.22,d:3},{x:-15,z:-5.85,w:.22,d:6.3},{x:-15,z:2.35,w:.22,d:5.3},
+ {x:15,z:-13.1,w:.22,d:3.8},{x:15,z:-6.4,w:.22,d:4.8},{x:15,z:2,w:.22,d:6},
  {x:-23,z:-1,w:.22,d:8},{x:-19,z:-5,w:8,d:.22},{x:-19,z:3,w:8,d:.22},
  {x:23,z:-10,w:.22,d:10},{x:19,z:-15,w:8,d:.22},{x:19,z:-5,w:8,d:.22},
  {x:-9.25,z:-15,w:11.5,d:.22},{x:9.25,z:-15,w:11.5,d:.22},
@@ -33,6 +34,7 @@ export const WALLS = [
  {x:-16.5,z:5,w:3,d:.22,minY:-3.2,maxY:8},{x:16.5,z:5,w:3,d:.22,minY:-3.2,maxY:8},
  {x:-14.5,z:37,w:7,d:.22,minY:-3.2,maxY:8},{x:0,z:37,w:10,d:.22,minY:-3.2,maxY:8},{x:14.5,z:37,w:7,d:.22,minY:-3.2,maxY:8},
 ];
+WALLS.push(...WING_WALLS);
 // Split each interior wall around a 2.4 metre passage. Visible and solid geometry agree.
 for(const door of DOORS)for(const side of [-1,1])WALLS.push(door.axis==='x'
  ?{x:door.x,z:door.z+side*3.1,w:.22,d:3.8}
@@ -76,7 +78,7 @@ function footprint(prop,index) {
 }
 export const PLAYER_RADIUS=.28;
 // Bounds describe the room interior; movement keeps the entire player inside it.
-export const ROOM_BOUNDS={minX:-22.89,maxX:22.89,minZ:-28.89,maxZ:45.89};
+export const ROOM_BOUNDS={minX:-40.89,maxX:49.89,minZ:-28.89,maxZ:45.89};
 export const SOLIDS=[
  ...DETAIL_FIXTURES.map(f=>({id:f.id,minX:f.x-f.w/2,maxX:f.x+f.w/2,minZ:f.z-f.d/2,maxZ:f.z+f.d/2,minY:f.y,maxY:f.y+f.h+.1})),
  {id:'core-well',...CORE_WELL,minY:-6,maxY:1.15},
@@ -88,6 +90,8 @@ export const SOLIDS=[
  ...PROP_LAYOUT.map(footprint),
  ...WALLS.map((w,i)=>({id:`wall-${i}`,minX:w.x-w.w/2,maxX:w.x+w.w/2,minZ:w.z-w.d/2,maxZ:w.z+w.d/2,minY:w.minY??-.15,maxY:w.maxY??3.5})),
  ...FIXTURES.map(f=>({id:f.id,minX:f.x-f.w/2,maxX:f.x+f.w/2,minZ:f.z-f.d/2,maxZ:f.z+f.d/2})),
+ ...SHAFT_COLLIDERS,
+ ...WING_FIXTURES.map(f=>({id:f.id,minX:f.x-f.w/2,maxX:f.x+f.w/2,minZ:f.z-f.d/2,maxZ:f.z+f.d/2,minY:0,maxY:f.h})),
 ];
 const OPEN_SOLIDS=SOLIDS.filter(s=>s.id!=='camera-door');
 export const solidsForState=cameraOpen=>cameraOpen?OPEN_SOLIDS:SOLIDS;
@@ -105,7 +109,7 @@ const SURFACES=[
  {minX:15,maxX:18.5,minZ:-13,maxZ:-10.5,y:0},
  {minX:21,maxX:23,minZ:-13,maxZ:-10.5,y:0},
  {minX:18.5,maxX:21,minZ:-13,maxZ:-10.5,y:-2.4},
- {minX:-15,maxX:15,minZ:-15,maxZ:5,y:0},...SEWER_SURFACES];
+ {minX:-15,maxX:15,minZ:-15,maxZ:5,y:0},...WING_SURFACES,...SEWER_SURFACES];
 export function groundHeight(x,z,previousY=0,maxStep=.22) {
  const levels=SURFACES.filter(s=>onSurface(s,x,z)).map(s=>surfaceY(s,z)).filter(y=>Math.abs(y-previousY)<=maxStep+1e-8);
  return levels.length?Math.max(...levels):null;
@@ -144,7 +148,14 @@ function recover(point,solids,radius) {
   bound(point,radius);
   if(!isWalkable(point.x,point.z,solids,radius,point.y,true)){point.x=0;point.y=0;point.z=2;}
 }
-export function moveWithCollisions(from,dx,dz,solids=SOLIDS,radius=PLAYER_RADIUS,dt=0) {
+export const LETHAL_DROP=4.5;
+// A grounded body that crosses a lip above a lethal drop catches the edge instead of falling.
+function ledgeEdge(start,end,y){
+ let lo=0,hi=1;
+ for(let n=0;n<14;n++){const t=(lo+hi)/2,x=start.x+(end.x-start.x)*t,z=start.z+(end.z-start.z)*t;if(groundHeight(x,z,y)!==null)lo=t;else hi=t;}
+ return {x:start.x+(end.x-start.x)*lo,z:start.z+(end.z-start.z)*lo,dirX:end.x-start.x,dirZ:end.z-start.z};
+}
+export function moveWithCollisions(from,dx,dz,solids=SOLIDS,radius=PLAYER_RADIUS,dt=0,grab=true) {
   const point={x:from.x,z:from.z,y:Number.isFinite(from.y)?from.y:(groundHeight(from.x,from.z,0,Infinity)??0)};
   if(!Number.isFinite(point.x)||!Number.isFinite(point.z))Object.assign(point,{x:0,y:0,z:2});
   point.vy=from.vy??0;point.fallStart=from.fallStart??point.y;point.stun=Math.max(0,(from.stun??0)-dt);
@@ -170,6 +181,13 @@ export function moveWithCollisions(from,dx,dz,solids=SOLIDS,radius=PLAYER_RADIUS
     if(Math.abs(sx)>Math.abs(sz)){axis('x',sx);axis('z',sz);}else{axis('z',sz);axis('x',sx);}
   }
   const floor=floorBelow(point.x,point.z,point.y);
+  const grounded=Math.abs((from.vy??0))<1e-6&&Math.abs(point.y-(from.fallStart??point.y))<.05;
+  if(grab&&grounded&&floor!==null&&floor<point.y-LETHAL_DROP&&groundHeight(point.x,point.z,point.y)===null){
+   const edge=ledgeEdge({x:from.x,z:from.z},point,point.y);
+   const l=Math.hypot(edge.dirX,edge.dirZ)||1;
+   point.x=edge.x;point.z=edge.z;point.vy=0;point.fallStart=point.y;point.ledge={x:edge.dirX/l,z:edge.dirZ/l};
+   return point;
+  }
   if(floor!==null&&floor<point.y-.22){
     point.vy-=9.8*Math.min(dt,.1);point.y=Math.max(floor,point.y+point.vy*Math.min(dt,.1));
     if(point.y===floor){if(point.fallStart-floor>1.2)point.stun=.8;point.vy=0;point.fallStart=floor;}
