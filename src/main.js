@@ -397,6 +397,8 @@ function loop(now){
   camera.position.copy(p);camera.lookAt(q.x,q.y-.15,q.z);position.set(p.x,0,p.z);
   if(camera.fov!==72){camera.fov=72;camera.updateProjectionMatrix();}
  }
+ // Photo mode for screenshots: a fixed camera, nothing else on screen.
+ if(window.__photo){const ph=window.__photo;camera.position.set(...ph.pos);camera.rotation.set(ph.pitch||0,ph.yaw||0,0);if(camera.fov!==(ph.fov||72)){camera.fov=ph.fov||72;camera.updateProjectionMatrix();}position.set(ph.pos[0],ph.pos[1]-1.65,ph.pos[2]);}
  // Interactions, prompt and hold ring.
  const toolBlocked=blocked||me.state!=='ok'||spec;
  toolWorld.update(toolState,myId,position,toolPlayers,now/1000,camera);

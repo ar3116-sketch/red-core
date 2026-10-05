@@ -108,3 +108,6 @@ body:has(.panel:not([hidden])) #touch{display:none}
 #shove-btn{position:fixed;right:24px;bottom:228px;font-size:8px;background:#28311f;border:1px solid #6d7652;padding:14px}
 @media(pointer:coarse){#shove-btn{display:block}}@media(pointer:fine){#shove-btn{display:none!important}}
 @media(max-width:530px){#objectives{top:76px;max-width:60vw}.home-grid{margin-top:2vh}}
+
+body.photo>*:not(#c){display:none!important}
+body.photo #c{height:56.25vw!important;bottom:auto!important}

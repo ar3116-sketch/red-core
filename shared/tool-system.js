@@ -1,4 +1,5 @@
 import {isWalkable,solidsForState,WALLS} from './world.js';
+import {HANGAR_LEAK} from './hangar.js';
 export const TOOL_NAMES={wrench:'PIPE WRENCH',rope:'RESCUE ROPE'};
 export const TOOL_STARTS=[
  {id:'wrench-shop',kind:'wrench',x:-10.7,y:1.12,z:2.26,floor:0},
@@ -11,6 +12,7 @@ export const TOOL_JOBS=[
  {id:'pump-leak',kind:'leak',tool:'wrench',x:-7.3,y:1.1,z:-11.6,floor:0,label:'LEAKING PUMP FLANGE'},
  {id:'core-leak',kind:'leak',tool:'wrench',x:5.7,y:1.1,z:-19,floor:0,label:'CORE RETURN LEAK'},
  {id:'basin-leak',kind:'leak',tool:'wrench',x:-4.1,y:-2.15,z:21.6,floor:-3.2,label:'SUMP PIPE LEAK'},
+ HANGAR_LEAK,
  {id:'rescue-west',kind:'anchor',tool:'rope',x:-14.15,y:.9,z:18.5,floor:0,label:'WEST GALLERY ROPE ANCHOR',top:{x:-14.8,y:0,z:18.5},bottom:{x:-13.2,y:-3.2,z:18.5}},
  {id:'rescue-pit',kind:'anchor',tool:'rope',x:18.2,y:.8,z:-12,floor:0,label:'SERVICE PIT ROPE ANCHOR',top:{x:17.7,y:0,z:-12},bottom:{x:19.3,y:-2.4,z:-12}},
 ];

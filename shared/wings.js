@@ -24,6 +24,7 @@ export const WING_OPENINGS=[
  {axis:'x',x:-25,min:-12,max:-9},
  {axis:'x',x:-31,min:-1.7,max:.7},
  {axis:'x',x:-31,min:-21.7,max:-19.3},
+ {axis:'z',z:12,min:25.2,max:28.4},
 ];
 const T=.22;
 function edgeWalls(s){

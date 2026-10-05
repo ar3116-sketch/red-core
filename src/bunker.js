@@ -10,6 +10,8 @@ import {lampVoltage} from './flicker.js';
 import {buildSewer} from './sewer.js';
 import {buildWings} from './wings.js';
 import {buildStations} from './stations-view.js';
+import {buildHangar} from './hangar.js';
+import {decorate} from './decor.js';
 import { ROOMS, WALLS, DOORS, FIXTURES } from '../shared/world.js';
 import { CONSOLE_POSITION } from '../shared/constants.js';
 
@@ -258,6 +260,8 @@ export function buildBunker(scene) {
     }
   }
 
+  buildHangar(scene,{box,roomSign,steel,dark,rust,hazard});
+  decorate(scene);
   const stations=buildStations(scene);
   addWorldDetail(scene);
   batchStatic(scene);
