@@ -9,6 +9,7 @@ import {dressBunker} from './dressing.js';
 import {lampVoltage} from './flicker.js';
 import {buildSewer} from './sewer.js';
 import {buildWings} from './wings.js';
+import {buildStations} from './stations-view.js';
 import { ROOMS, WALLS, DOORS, FIXTURES } from '../shared/world.js';
 import { CONSOLE_POSITION } from '../shared/constants.js';
 
@@ -236,6 +237,8 @@ export function buildBunker(scene) {
       crtCtx.fillText(`TEMP ${temp.toFixed(1)}%`, 4, 22);
       crtCtx.fillText(`PRES ${pressure.toFixed(0)}%`, 4, 32);
       crtCtx.fillRect(4, 37, Math.min(119, Math.max(0, temp * 1.19)), 4);
+      // The last completed service cycle stays on screen: a saboteur's cycle reads as a rise.
+      if(extra.console){crtCtx.fillStyle=extra.console.delta>0?'#ff8060':'#83e6a1';crtCtx.fillText(`LAST CYCLE ${extra.console.delta>0?'+':''}${extra.console.delta}%`,64,22);}
       crtCtx.beginPath();
       for (let x = 3; x < 125; x++) {
         const y = 53 + Math.sin(x * .18 + elapsed * 3) * (2 + temp / 45);
@@ -255,8 +258,9 @@ export function buildBunker(scene) {
     }
   }
 
+  const stations=buildStations(scene);
   addWorldDetail(scene);
   batchStatic(scene);
   update(1, 50, 20, false);
-  return { screen, update,renderFeeds:facility.renderFeeds };
+  return { screen, update,renderFeeds:facility.renderFeeds,facility,stations,wings,consoleScreen:{crtCtx,crtTexture} };
 }

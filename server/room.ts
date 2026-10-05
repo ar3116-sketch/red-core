@@ -48,6 +48,7 @@ export default class Room implements Party.Server {
  valveUntil=0;sealedUntil=0;cutCameras=new Set<string>();lastConsoleCycle:{delta:number;at:number}|null=null;
  log:{at:string;text:string}[]=[];radioQueue:{to:number;text:string;deliver:number}[]=[];
  surgeUntil=0;mistAt:{x:number;z:number;until:number}|null=null;
+ tutorial=false;
 
  constructor(readonly room:Party.Room){this.resetMatch();}
 
@@ -139,17 +140,17 @@ export default class Room implements Party.Server {
  private startBriefing(){
   this.resetMatch();
   const ids=[...this.players.values()].filter(p=>!p.bot&&p.state!=='spectator').map(p=>p.id);
-  const roles=assignRoles(ids);
+  const roles=this.tutorial?Object.fromEntries(ids.map(id=>[id,'crew'])):assignRoles(ids);
   const spawn=[[0,2],[-2,1],[2,1],[-1,3],[1,3],[0,.5],[-3,2.5],[3,2.5]];
   const lair=VENTS.find(v=>v.id==='core')!;
   ids.forEach((id,i)=>{const p=this.players.get(id)!;p.role=roles[id] as Role;p.state='ok';
    if(p.role==='specimen')Object.assign(p,{x:lair.x,z:lair.z,y:0,stillSince:Date.now()});
    else Object.assign(p,{x:spawn[i][0],z:spawn[i][1],y:0});});
-  if(roleCounts(ids.length).aiSpecimen){
+  if(roleCounts(ids.length).aiSpecimen&&!this.tutorial){
    const bot={...this.newPlayer('ai-stalker'),bot:true,role:'specimen' as Role,line:0,callsign:'STALKER',x:lair.x,z:lair.z,ai:{path:[],until:0,retreatUntil:Date.now()+(BRIEFING_SECONDS+35)*1000}};
    this.players.set(bot.id,bot);
   }
-  this.phase='briefing';this.phaseEnds=Date.now()+BRIEFING_SECONDS*1000;
+  this.phase='briefing';this.phaseEnds=Date.now()+(this.tutorial?2500:BRIEFING_SECONDS*1000);
  }
  private finish(kind:string){
   if(this.outcome)return;
@@ -168,6 +169,7 @@ export default class Room implements Party.Server {
  private simulate(now:number,dt:number){
   for(const p of this.players.values())this.body(p,now,dt);
   for(const [id,pending] of this.toolPending){const p=this.players.get(id),job=TOOL_JOBS.find(j=>j.id===pending.job);if(!p||!job||!withinToolReach(p,job,this.cameraOpened))this.toolPending.delete(id);}
+  if(this.tutorial){this.tutorialTick(now);return;}
   this.tLeft=Math.max(0,this.tLeft-dt);
   this.temp=Math.min(100,this.temp+DRIFT_PER_SEC*(now<this.valveUntil?3:1)*dt);
   this.pressure=Math.max(20,this.pressure-.03*dt);
@@ -326,6 +328,21 @@ export default class Room implements Party.Server {
   Object.assign(p,{x:next.x,y:next.y,z:next.z,vy:next.vy,fallStart:next.fallStart});
  }
 
+ // Training: scripted shove over a lip, a rescue, and a harmless stalker walking past.
+ private tutorialTick(now:number){
+  for(const [id,b] of this.players)if(b.bot&&b.ai&&now>b.ai.until){this.players.delete(id);}
+ }
+ private tutorialEvent(p:Player,m:any,now:number){
+  if(m.kind==='shove'&&p.state==='ok'){
+   const next=moveWithCollisions(p,Number(m.dx)*1.8,Number(m.dz)*1.8,this.solids(),undefined,.1,true);
+   Object.assign(p,{x:next.x,y:next.y,z:next.z,vy:next.vy,fallStart:next.fallStart});if(next.ledge)this.hangOn(p,next.ledge);this.send(p.id,{t:'cue',kind:'shoved'});
+  }
+  if(m.kind==='rescue'&&p.hang){const {dirX,dirZ}=p.hang;p.state='ok';p.hang=null;p.x-=dirX*.7;p.z-=dirZ*.7;p.noGrabUntil=now+1500;}
+  if(m.kind==='stalker'&&![...this.players.values()].some(q=>q.bot)){
+   const bot={...this.newPlayer('ai-tutorial'),bot:true,role:'specimen' as Role,line:0,callsign:'STALKER',x:-27,z:-24,ai:{path:[{x:-27,z:-20},{x:-27,z:-15},{x:-26,z:-5},{x:-27,z:2},{x:-27,z:-6},{x:-27,z:-22}],until:now+14000,retreatUntil:now+999999}};
+   this.players.set(bot.id,bot as Player);
+  }
+ }
  private largestCluster(){
   const all=[...this.players.values()].filter(p=>humanRole(p)&&p.state!=='dead');
   return all.reduce((n,c)=>Math.max(n,all.filter(p=>Math.hypot(p.x-c.x,p.y-c.y,p.z-c.z)<=2.5).length),0);
@@ -349,7 +366,7 @@ export default class Room implements Party.Server {
   const p=this.players.get(sender.id);if(!p)return;
   const now=Date.now();
   if(m.t==='ready'&&this.phase==='lobby'){p.ready=!p.ready;this.broadcast();return;}
-  if(m.t==='start'&&this.phase==='lobby'&&sender.id===this.hostId){this.startBriefing();this.broadcast();return;}
+  if(m.t==='start'&&this.phase==='lobby'&&sender.id===this.hostId){this.tutorial=!!m.tutorial;this.startBriefing();this.broadcast();return;}
   if(m.t==='again'&&this.phase==='over'&&sender.id===this.hostId){this.phase='lobby';this.resetMatch();this.broadcast();return;}
   if(this.phase!=='shift')return;
   if(p.state==='dead'||p.state==='escaped'||p.state==='spectator'){if(m.t==='pos'&&Number.isFinite(m.x)&&Number.isFinite(m.z)){p.x=m.x;p.z=m.z;p.y=Number.isFinite(m.y)?m.y:p.y;}return;}
@@ -367,6 +384,7 @@ export default class Room implements Party.Server {
    if(p.hold&&moved>.3)p.hold=null;
    return;
   }
+  if(m.t==='tut'&&this.tutorial){this.tutorialEvent(p,m,now);return;}
   if(m.t==='hold'){const spec=this.holdSpec(p,String(m.kind),String(m.target??''));if(spec.ok)p.hold={kind:String(m.kind),target:String(m.target??''),start:now,duration:spec.duration};else if(spec.why)this.send(p.id,{t:'note',text:spec.why});return;}
   if(m.t==='release'){p.hold=null;return;}
   if(m.t==='beat'&&p.state==='hanging'&&p.hang){p.hang.score=Math.min(100,p.hang.score+(m.hit?HANG.hit[2-p.hang.hands]:-HANG.miss));if(p.hang.score<=0)this.release(p,now);return;}

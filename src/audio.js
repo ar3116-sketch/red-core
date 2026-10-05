@@ -105,7 +105,18 @@ export class BunkerAudio {
     const source=this.ctx.createBufferSource(),filter=this.ctx.createBiquadFilter(),gain=this.ctx.createGain(),stereo=this.ctx.createStereoPanner();source.buffer=this.noise;filter.type='lowpass';filter.frequency.value=frequency;stereo.pan.value=pan;
     gain.gain.setValueAtTime(volume,when);gain.gain.exponentialRampToValueAtTime(.0001,when+duration);source.connect(filter).connect(gain).connect(stereo).connect(this.world);source.start(when);source.stop(when+duration+.01);
   }
+  // Called on the first click or key press; browsers only allow audio after a gesture.
+  async enable(){if(this.enabled)return true;return this.toggle();}
+  thud(volume,pan=0){if(!this.ctx||!this.enabled)return;const now=this.ctx.currentTime;this.burst(now,180,.22,.35*volume,pan);this.tone(now,48,.25,.18*volume,'sine',pan);}
   cue(kind){if(!this.ctx||!this.enabled)return;const now=this.ctx.currentTime;
+    if(kind==='beat'){this.pulse(now,1.1);return;}
+    if(kind==='grab'){this.burst(now,900,.18,.3);this.tone(now,90,.3,.12,'triangle');return;}
+    if(kind==='slip'){this.burst(now,1400,.3,.2);this.tone(now,220,.4,.08,'sawtooth');return;}
+    if(kind==='hit'||kind==='shoved'){this.burst(now,320,.3,kind==='hit'?.4:.25);this.tone(now,70,.3,.2,'triangle');return;}
+    if(kind==='vent'){for(let i=0;i<6;i++)this.burst(now+i*.11,2400,.07,.12,Math.random()-.5);return;}
+    if(kind==='pulse'){this.tone(now,180,1.2,.08,'sine');this.tone(now+.05,360,1,.04,'sine');return;}
+    if(kind==='radio'){this.burst(now,3000,.5,.06);this.tone(now+.1,1200,.08,.03,'square');return;}
+    if(kind==='lunge'){this.burst(now,500,.25,.3);this.tone(now,110,.3,.12,'sawtooth');return;}
     if(kind==='success'){this.tone(now,420,.15,.05);this.tone(now+.15,620,.22,.05);}
     else if(kind==='reject'){this.tone(now,120,.25,.06,'triangle');}
     else if(kind==='turn'){this.burst(now,1600,.05,.035);}
