@@ -36,6 +36,8 @@ import {createSweeper,createScope,createMutation,createVentMap,createScif} from 
 import {setMode,getMode,setRole,renderLobby,renderBriefing,renderOver,bindCopy} from './screens.js';
 import {renderObjectives,renderSpecimen} from './hud.js';
 import {createTutorial} from './tutorial.js';
+import {createDiegetic} from './diegetic.js';
+import {COOLANT_STATION} from '../shared/coolant.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('c');
@@ -65,8 +67,10 @@ function resizeView(){
  const height=aspect>=1?Math.round(384/aspect):384;
  renderer.setSize(Math.max(1,Math.round(height*aspect)),height,false);
  camera.aspect=aspect;camera.updateProjectionMatrix();firstPerson.resize(aspect);
+ diegetic?.setSize(canvas.clientWidth,canvas.clientHeight);
 }
-new ResizeObserver(resizeView).observe(canvas);resizeView();
+let diegetic=null;
+new ResizeObserver(()=>resizeView()).observe(canvas);resizeView();
 
 // ---------- audio: starts on the first gesture ----------
 const audio=new BunkerAudio();
@@ -106,6 +110,9 @@ const blockers=()=>[relay,chess,coolant,facilityPanels,tubes,sweeper,scope,mutat
 const panelOpen=()=>blockers().length>0||!$('pause').hidden;
 const beat=createBeatBar();
 const floorPlan=createFloorPlan(()=>getMode()==='shift'&&!panelOpen());
+// Machine panels sit on the machines themselves.
+diegetic=createDiegetic();diegetic.setSize(canvas.clientWidth,canvas.clientHeight);
+for(const [id,a,w] of [['relay-panel',{x:0,y:1.2,z:-7.5},.95],['coolant-panel',{x:COOLANT_STATION.x,y:COOLANT_STATION.y+1.25,z:COOLANT_STATION.z},.9],['access-panel',{x:-14.75,y:1.45,z:-3.3},.85],['burn-panel',{x:21,y:1.35,z:-7.75},.85],['tube-panel',{x:-20.85,y:1.25,z:-1},.85],['chess-panel',{x:10,y:1.15,z:-13.3},.8],['sweeper-panel',{x:-35,y:1.2,z:-15.7},.8],['scope-panel',{x:40.1,y:1.2,z:-10},.85],['scif-panel',{x:-20.9,y:1.6,z:-1},.95]])diegetic.add(id,()=>a,w);
 
 // ---------- peers ----------
 const peerMaterial=new THREE.MeshLambertMaterial({color:0x6d7551});
@@ -392,6 +399,7 @@ function loop(now){
   camera.position.set(position.x+(Math.random()-.5)*shake*.15,position.y+eye+(Math.random()-.5)*shake*.15,position.z);
   camera.rotation.set(pitch,yaw,0);
   const fov=spec?84:72;if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();}
+  diegetic.update(dt,camera,camera.position);
  }else{
   // Menus: a slow drift through the bunker behind the screen.
   const t=(now/1000*.006)%1,p=tour.getPointAt(t),q=tour.getPointAt((t+.01)%1);
@@ -451,6 +459,7 @@ function loop(now){
   $('event').textContent=st.event||'';
   renderObjectives(st,me,held?.kind==='wrench');
   $('spec-hud').hidden=!spec;if(spec)renderSpecimen(me,me.mutations);
+  $('hint').textContent=spec?'WASD MOVE / MOUSE LOOK / CLICK OR F LUNGE / E SAFES, VENTS, LIFT / TAB MAP':me.state==='dead'?'GHOST / WASD DRIFT / SPACE UP / SHIFT DOWN':'WASD MOVE / CLICK + MOUSE LOOK / E USE / F SHOVE / T TAPE / TAB MAP / ESC MENU';
   floorPlan.update(position,yaw,now);
   canvas.style.filter=spec?(me.stage===0&&!has('thermal')?'blur(1.4px) saturate(.5)':me.stage<2?'blur(.6px)':''):me.state==='dead'?'grayscale(.8)':'';
   if(training)tutorial.update({position,yaw,state:st,me,held:held?.kind});
@@ -465,6 +474,7 @@ function loop(now){
  bunker.renderFeeds(renderer,now,tubesState.powered,position,selectLights,{before:()=>specimenView.beginFeed(),after:()=>specimenView.endFeed()});
  selectLights(camera.position);
  ps1.render(scene,camera,{danger,blackout,time:now/1000},()=>{if(inShift&&!spec&&me.state==='ok')firstPerson.render(renderer);});
+ diegetic.render(camera);
  // Dev screenshot capture: copy this frame, upscaled with hard pixels, to the dev server.
  if(window.__capture&&now>(window.__captureAfter||0)){const name=window.__capture;window.__capture=null;const up=document.createElement('canvas');up.width=canvas.width*3;up.height=canvas.height*3;const g=up.getContext('2d');g.imageSmoothingEnabled=false;g.drawImage(canvas,0,0,up.width,up.height);fetch('/__shot?name='+name,{method:'POST',body:up.toDataURL('image/png')}).then(()=>{window.__captured=name;});}
 }
