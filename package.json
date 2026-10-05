@@ -8,7 +8,9 @@
     "preview": "vite preview --port 8080",
     "party": "partykit dev",
     "rig:check": "node tools/check-rig.mjs assets/ozk.glb",
-    "map:check": "node tools/check-map.mjs"
+    "map:check": "node tools/check-map.mjs",
+    "check": "for t in chess-safe collision evolution map reactor relay sewer stations movement; do node tools/check-$t.mjs || exit 1; done",
+    "deploy": "npx vite build && npx partykit deploy"
   },
   "dependencies": {
     "partysocket": "1.1.3",
