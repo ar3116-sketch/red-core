@@ -28,6 +28,7 @@ import { BunkerAudio } from './audio.js';
 import { addProps } from './props.js';
 import { createFirstPerson } from './first-person.js';
 import { movementVector } from './movement.js';
+import { autoPS1, createPS1Post } from './ps1.js';
 
 const canvas = document.getElementById('c');
 const floorPlan = createFloorPlan();
@@ -43,6 +44,8 @@ document.getElementById('menu-close').onclick = () => setMenu(false);
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(1);
 renderer.setSize(320, 240, false);
+autoPS1();
+const ps1 = createPS1Post(renderer);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x080d0a);
 scene.fog = new THREE.Fog(0x080d0a, 7, 46);
@@ -52,7 +55,7 @@ scene.add(new THREE.AmbientLight(0x819478, .32));
 const lamp = new THREE.PointLight(0xffb64a, 5, 17);
 lamp.position.set(0, 2.7, -10);
 scene.add(lamp);
-const emergency = new THREE.PointLight(0x19d4db, 0.8, 9);
+const emergency = new THREE.PointLight(0xc0602a, 0.8, 9);
 emergency.position.set(10, 2.5, -10);
 scene.add(emergency);
 
@@ -482,7 +485,8 @@ function loop(now) {
     toolUse:toolPending?toolProgress:0,equipping:equip,holdingBreath:keys.has('KeyC')||touchBreath,blackout,menuOpen:menuOpen||relay.isOpen||chess.isOpen||coolant.isOpen||facilityPanels.isOpen||tubes.isOpen});
   renderFeeds(renderer,now,tubesState.powered,position,selectLights);
   selectLights(camera.position);
-  renderer.render(scene, camera);
-  firstPerson.render(renderer);
+  ps1.render(scene, camera, { danger: Math.max(0,(temp-80)/20), blackout, time: now/1000 }, () => firstPerson.render(renderer));
 }
 requestAnimationFrame(loop);
+// Debug handle for automated playtests.
+window.__rc={position,get yaw(){return yaw;},set yaw(v){yaw=v;},get pitch(){return pitch;},set pitch(v){pitch=v;}};

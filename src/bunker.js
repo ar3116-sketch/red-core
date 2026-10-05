@@ -8,6 +8,7 @@ import {buildFacility} from './facility.js';
 import {dressBunker} from './dressing.js';
 import {lampVoltage} from './flicker.js';
 import {buildSewer} from './sewer.js';
+import {buildWings} from './wings.js';
 import { ROOMS, WALLS, DOORS, FIXTURES } from '../shared/world.js';
 import { CONSOLE_POSITION } from '../shared/constants.js';
 
@@ -214,11 +215,12 @@ export function buildBunker(scene) {
   const equipment=detailEquipment(scene,{box,pipe,steel,dark,rust,coolant,roomSign});
   const facility=buildFacility(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,glow,hazard});
   const sewer=buildSewer(scene,{box,pipe,roomSign,wall,floor,rust,steel,dark,hazard,glow,coolant});
+  const wings=buildWings(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,hazard,glow,coolant});
   let elapsed = 0, screenClock = 0;
-  function update(dt, temp, pressure, blackout, safeOpened=false,cameraOpened=false,tubesPowered=false,coolantState={intake:25,bypass:75,cycle:0,filterReady:false,filterProgress:0,cooldown:0}) {
+  function update(dt, temp, pressure, blackout, safeOpened=false,cameraOpened=false,tubesPowered=false,coolantState={intake:25,bypass:75,cycle:0,filterReady:false,filterProgress:0,cooldown:0},extra={}) {
     safeAngle += ((safeOpened?-1.45:0)-safeAngle)*Math.min(1,dt*5);
     safeDoor.rotation.y=safeAngle;
-    elapsed += dt;reactor.update(dt,elapsed,temp,pressure,blackout,coolantState);equipment.update(dt);sewer.update(elapsed,blackout);facility.update(dt,elapsed,cameraOpened,tubesPowered);
+    elapsed += dt;reactor.update(dt,elapsed,temp,pressure,blackout,coolantState);equipment.update(dt);sewer.update(elapsed,blackout);wings.update(elapsed,blackout,extra.liftOpen||0,extra.alarm||false);facility.update(dt,elapsed,cameraOpened,tubesPowered);
     for(const l of roomLamps){const voltage=blackout?.07:lampVoltage(elapsed,l.seed,l.damaged);l.light.intensity=8*voltage;for(const b of l.bulbs)b.color.copy(glow.color).multiplyScalar(voltage);}
     screenClock += dt;
     if (screenClock >= .12) {
