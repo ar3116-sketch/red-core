@@ -9,7 +9,7 @@
     "party": "partykit dev",
     "rig:check": "node tools/check-rig.mjs assets/ozk.glb",
     "map:check": "node tools/check-map.mjs",
-    "check": "for t in chess-safe collision evolution map reactor relay sewer stations movement; do node tools/check-$t.mjs || exit 1; done",
+    "check": "for t in chess-safe collision evolution map reactor relay sewer stations movement bots; do node tools/check-$t.mjs || exit 1; done",
     "deploy": "npm run build:all",
     "build:server": "esbuild server/node.ts --bundle --platform=node --format=esm --outfile=build/server.mjs --banner:js=\"import {createRequire} from 'module';const require=createRequire(import.meta.url);\"",
     "build:all": "vite build && npm run build:server",

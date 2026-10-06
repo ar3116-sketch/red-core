@@ -13,7 +13,8 @@ const cellOf=(x,z)=>[Math.floor((x-MINX)/CELL),Math.floor((z-MINZ)/CELL)];
 const centre=(i,j)=>({x:MINX+(i+.5)*CELL,z:MINZ+(j+.5)*CELL});
 function nearestOpen(g,i,j){if(g[j*W+i])return [i,j];for(let r=1;r<6;r++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){const a=i+di,b=j+dj;if(a>=0&&b>=0&&a<W&&b<H&&g[b*W+a])return [a,b];}return null;}
 // Straight walkable line on the grid (Bresenham-ish sampling).
-function clear(g,a,b){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/(CELL*.5));for(let k=0;k<=n;k++){const x=a.x+(b.x-a.x)*k/n,z=a.z+(b.z-a.z)*k/n;const [i,j]=cellOf(x,z);if(i<0||j<0||i>=W||j>=H||!g[j*W+i])return false;}return true;}
+// A shortcut must stay on open cells and keep real clearance from walls and door jambs.
+function clear(g,a,b,solids){const n=Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/(CELL*.5));for(let k=0;k<=n;k++){const x=a.x+(b.x-a.x)*k/n,z=a.z+(b.z-a.z)*k/n;const [i,j]=cellOf(x,z);if(i<0||j<0||i>=W||j>=H||!g[j*W+i]||!isWalkable(x,z,solids,.31,0))return false;}return true;}
 export function reachable(p,cameraOpen=false){const g=grid(cameraOpen),[i,j]=cellOf(p.x,p.z);return i>=0&&j>=0&&i<W&&j<H&&!!g[j*W+i];}
 export function findPath(from,to,cameraOpen=false){
  const g=grid(cameraOpen);let s=nearestOpen(g,...cellOf(from.x,from.z)),t=nearestOpen(g,...cellOf(to.x,to.z));if(!s||!t)return null;
@@ -33,6 +34,6 @@ export function findPath(from,to,cameraOpen=false){
  cells.push({x:to.x,z:to.z});
  // String-pull: keep only the corners a straight walk cannot skip.
  const out=[];let anchor={x:from.x,z:from.z},idx=0;
- while(idx<cells.length-1){let far=idx;for(let k=cells.length-1;k>idx;k--){if(clear(g,anchor,cells[k])){far=k;break;}}if(far===idx)far=idx+1;out.push(cells[far]);anchor=cells[far];idx=far;}
+ while(idx<cells.length-1){let far=idx;for(let k=cells.length-1;k>idx;k--){if(clear(g,anchor,cells[k],solidsForState(cameraOpen))){far=k;break;}}if(far===idx)far=idx+1;out.push(cells[far]);anchor=cells[far];idx=far;}
  return out;
 }

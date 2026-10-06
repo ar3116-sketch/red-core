@@ -14,6 +14,8 @@ import {CALLSIGNS,MAX_PLAYERS,BRIEFING_SECONDS,assignRoles,roleCounts,SPECIMEN,M
 import type * as Party from 'partykit/server';
 import {ACTION_RANGE,CONSOLE_POSITION,DRIFT_PER_SEC,MOVE_SPEED,SHIFT_SECONDS,START_TEMP,TICK_HZ} from '../shared/constants.js';
 import {chooseDirectorAction,type DirectorAction} from './director.js';
+import {Bots,edgeDir} from './bots.js';
+import {findPath} from '../shared/botnav.js';
 
 type Role='crew'|'saboteur'|'specimen';
 type Hold={kind:string,target:string,start:number,duration:number};
@@ -28,7 +30,8 @@ interface Player{
  stage:number;mutations:Record<string,string>;offer:string|null;lastLunge:number;lastSmash:number;lastSprint:number;lastPulse:number;lastMist:number;
  stillSince:number;revealUntil:number;vent:{to:string;arrive:number}|null;inVent:boolean;solved:string[];
  stats:{tasks:number;sabotage:number;rescues:number;shoves:number;lunges:number;falls:number};
- ai?:{path:{x:number;z:number}[];until:number;retreatUntil:number};
+ ai?:{path:{x:number;z:number}[];until:number;retreatUntil:number;obj?:string;workUntil?:number;escapeRetry?:number;flankSince?:number;check?:{x:number;z:number;at:number}};
+ brain?:any;
 }
 const clock=(s:number)=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 const humanRole=(p:Player)=>p.role==='crew'||p.role==='saboteur';
@@ -55,6 +58,7 @@ export default class Room implements Party.Server {
  crane:any={x:56,z:40,L:12,ax:0,az:0,latched:false,load:[56,-8,40]};
  armed=new Map<string,{at:number;by:string}>();
  sabWork=new Map<string,{id:string;start:number}>();
+ fill=false;bots=new Bots(this);
 
  constructor(readonly room:Party.Room){this.resetMatch();}
 
@@ -104,7 +108,7 @@ export default class Room implements Party.Server {
    lobby:[...this.players.values()].filter(p=>!p.bot).map(p=>({line:p.line,ready:p.ready,host:p.id===this.hostId})),
    players:[...this.players.values()].filter(p=>p.role!=='specimen'&&p.state!=='spectator').map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,stun:p.stun,state:p.state,hang:p.hang?{hands:p.hang.hands,dirX:p.hang.dirX,dirZ:p.hang.dirZ}:null,hold:p.hold?.kind??null})),
    specimen:spec&&spec.state!=='dead'&&this.phase!=='lobby'?{x:spec.x,y:spec.y,z:spec.z,yaw:spec.yaw,still:now-spec.stillSince,stage:spec.stage,mutations:spec.mutations,inVent:spec.inVent,reveal:now<spec.revealUntil,hold:spec.hold?.kind??null,bot:!!spec.bot}:null,
-   outcome:this.outcome?{...this.outcome,roster:[...this.players.values()].filter(p=>p.role).map(p=>({id:p.id,line:p.line,callsign:p.bot?'STALKER':p.callsign,role:p.role,state:p.state,bot:!!p.bot,stats:p.stats}))}:null,
+   outcome:this.outcome?{...this.outcome,roster:[...this.players.values()].filter(p=>p.role).map(p=>({id:p.id,line:p.line,callsign:p.ai?'STALKER':p.callsign,role:p.role,state:p.state,bot:!!p.bot,stats:p.stats}))}:null,
   };
  }
  private mine(p:Player){
@@ -148,14 +152,23 @@ export default class Room implements Party.Server {
  // ---------- match flow ----------
  private startBriefing(){
   this.resetMatch();
-  const ids=[...this.players.values()].filter(p=>!p.bot&&p.state!=='spectator').map(p=>p.id);
-  const roles=this.tutorial?Object.fromEntries(ids.map(id=>[id,'crew'])):assignRoles(ids);
+  // Solo rooms and "fill with bots" lobbies top the shift up with bot engineers.
+  const solo=this.room.id.startsWith('SOLO-')&&!this.tutorial;
+  const humans=[...this.players.values()].filter(p=>!p.bot&&p.state!=='spectator').map(p=>p.id);
+  const bodies=this.tutorial?0:solo?4:this.fill?5:0,bots:string[]=[];
+  for(let i=humans.length;i<bodies;i++){const b=this.newPlayer(`bot-${this.matchNo}-${i}`);b.bot=true;this.players.set(b.id,b);bots.push(b.id);}
+  const ids=[...humans,...bots];
+  let roles:Record<string,string>;
+  if(this.tutorial)roles=Object.fromEntries(ids.map(id=>[id,'crew']));
+  else if(solo){const order=[...ids].sort(()=>Math.random()-.5);roles=Object.fromEntries(order.map((id,i)=>[id,i===0&&ids.length>=4?'saboteur':'crew']));}
+  else roles=assignRoles(ids);
   const spawn=[[0,2],[-2,1],[2,1],[-1,3],[1,3],[0,.5],[-3,2.5],[3,2.5]];
   const lair=VENTS.find(v=>v.id==='core')!;
   ids.forEach((id,i)=>{const p=this.players.get(id)!;p.role=roles[id] as Role;p.state='ok';
    if(p.role==='specimen')Object.assign(p,{x:lair.x,z:lair.z,y:0,stillSince:Date.now()});
-   else Object.assign(p,{x:spawn[i][0],z:spawn[i][1],y:0});});
-  if(roleCounts(ids.length).aiSpecimen&&!this.tutorial){
+   else Object.assign(p,{x:spawn[i%spawn.length][0],z:spawn[i%spawn.length][1],y:0});
+   if(p.bot&&p.role==='specimen'){p.callsign='STALKER';p.ai={path:[],until:0,retreatUntil:Date.now()+(BRIEFING_SECONDS+35)*1000};}});
+  if(!this.tutorial&&!ids.some(id=>roles[id]==='specimen')){
    const bot={...this.newPlayer('ai-stalker'),bot:true,role:'specimen' as Role,line:0,callsign:'STALKER',x:lair.x,z:lair.z,ai:{path:[],until:0,retreatUntil:Date.now()+(BRIEFING_SECONDS+35)*1000}};
    this.players.set(bot.id,bot);
   }
@@ -206,7 +219,7 @@ export default class Room implements Party.Server {
  private body(p:Player,now:number,dt:number){
   if(p.state==='dead'||p.state==='escaped'||p.state==='spectator')return;
   if(p.inVent){if(p.vent&&now>=p.vent.arrive){const v=VENTS.find(v=>v.id===p.vent!.to)!;Object.assign(p,{x:v.x,z:v.z,y:0,vy:0,fallStart:0,inVent:false,vent:null,stillSince:now});this.ventNoise(v.id);}return;}
-  if(p.bot)this.drive(p,now,dt);
+  if(p.bot){if(p.ai)this.drive(p,now,dt);else this.bots.tick(p,now,dt);}
   if(p.state==='hanging'&&p.hang){
    p.hang.score-=HANG.drain[2-p.hang.hands]*dt;
    if(p.hang.score<50&&p.hang.hands===2){p.hang.hands=1;this.send(p.id,{t:'cue',kind:'slip'});}
@@ -273,7 +286,7 @@ export default class Room implements Party.Server {
  private complete(p:Player,h:Hold,now:number){
   const t=this.players.get(h.target);
   if(h.kind==='help'&&t?.hang){const {dirX,dirZ}=t.hang;t.state='ok';t.hang=null;t.x-=dirX*.7;t.z-=dirZ*.7;t.noGrabUntil=now+1500;p.stats.rescues++;this.event('PULLED BACK OVER THE LIP');}
-  if(h.kind==='tape'&&t){for(const q of this.players.values())if(q.hold?.kind==='tape'&&q.hold.target===t.id)q.hold=null;t.state='taped';t.taped={since:now,hits:0};t.hold=null;this.event('SOMEONE IS TAPED TO A PIPE');}
+  if(h.kind==='tape'&&t){for(const q of this.players.values())if(q.hold?.kind==='tape'&&q.hold.target===t.id)q.hold=null;t.state='taped';t.taped={since:now,hits:0};t.hold=null;this.event('SOMEONE IS TAPED TO A PIPE');this.bots.taped(t);}
   if(h.kind==='cut'&&t?.taped){this.untape(t,now,false);p.stats.rescues++;}
   if(h.kind==='sab'){const s=SABOTAGE.find(s=>s.id===h.target)!;p.lastSabotage=now;p.stats.sabotage++;
    if(s.id==='valve')this.valveUntil=now+s.lasts*1000;
@@ -292,6 +305,51 @@ export default class Room implements Party.Server {
   if(h.kind==='escape'){p.state='escaped';this.finish('escape');}
   if(h.kind==='vent'){const v=nearVent(p)!;p.inVent=true;p.vent=null;Object.assign(p,{x:v.x,z:v.z});this.ventNoise(v.id);this.send(p.id,{t:'ventOpen',from:v.id});}
   if(h.kind==='pry'){if(!this.cameraOpened&&nearStation(p,CAMERA_PANEL,2.2))this.cameraOpened=true;else this.sealedUntil=0;p.revealUntil=now+2000;this.event('METAL SHRIEKS / A DOOR WAS TORN OPEN');}
+ }
+ serviceMachine(p:Player,def:any,now:number){
+  const st=this.machineState[def.id];if(!st)return;
+  // A saboteur can work a machine to look busy; it does nothing for the core.
+  if(p.role==='saboteur'&&def.sabEffect){this.temp=Math.min(100,this.temp+def.sabEffect.temp);}
+  if(def.id==='harness'){this.lastConsoleCycle={delta:p.role==='saboteur'?def.sabEffect.temp:def.effect.temp,at:now};if(p.role==='saboteur')this.bots.notice('harness',p,p);}
+  if(p.role==='crew'){const e:any=def.effect;if(e.temp)this.temp=Math.max(0,this.temp+e.temp);if(e.pressure)this.pressure=Math.max(20,this.pressure+e.pressure);if(e.pin&&!p.bot)this.send(p.id,{t:'note',text:`RADIO: CAMERA ROOM CODE ${accessPuzzle(this.seed).pin.split('').join(' ')}`});}
+  p.stats.tasks++;st.cycle++;st.readyAt=now+def.cooldown*1000;this.event(`${def.label} / SERVICED`);
+ }
+ // Bot speech: subtitles for anyone in earshot.
+ say(p:Player,text:string,radius=22){for(const q of this.players.values())if(!q.bot&&Math.hypot(q.x-p.x,q.z-p.z)<radius&&Math.abs(q.y-p.y)<5)this.send(q.id,{t:'say',name:p.callsign,line:p.line,text,x:p.x,z:p.z});}
+ sabNoise(p:Player,s:any,now:number){
+  this.sabWork.set(p.id,{id:s.id,start:now});
+  // The work is loud: anyone within 14 m hears metal shriek, sparks or clicking.
+  for(const q of this.players.values())if(!q.bot&&q.id!==p.id&&Math.hypot(q.x-s.x,q.z-s.z)<14)this.send(q.id,{t:'cue',kind:s.id==='valve'?'squeal':s.id==='breaker'?'spark':'tamper',x:s.x,z:s.z});
+  this.bots.notice('noise',p,s,s.label);
+ }
+ sabFail(p:Player,s:any,now:number,r:any={shock:s.id==='breaker',tamper:!!s.camera}){
+  this.sabWork.delete(p.id);
+  if(r.shock){p.stun=1.6;this.event('SPARKS AND A SCREAM IN THE SUBSTATION');for(const q of this.players.values())if(!q.bot&&Math.hypot(q.x-s.x,q.z-s.z)<20)this.send(q.id,{t:'cue',kind:'spark'});}
+  if(r.tamper){this.logLine(`CAM ${s.label.slice(-2)} / TAMPER ALERT`);this.event('SCIF / CAMERA TAMPER ALERT');}
+  if(r.shock||r.tamper)this.bots.notice('tamper',p,s,s.label);
+ }
+ // Armed, not instant: every engineer gets a warning and seconds to stop it.
+ armSabotage(p:Player,s:any,now:number){
+  this.sabWork.delete(p.id);p.lastSabotage=now;this.armed.set(s.id,{at:now+SAB_ARM_SECONDS*1000,by:p.id});this.witness(s);
+  this.event(`WARNING / ${s.label} / ${SAB_ARM_SECONDS} SECONDS`);
+  for(const q of this.players.values())if(!q.bot&&q.role!=='specimen')this.send(q.id,{t:'cue',kind:'warn'});
+  this.bots.notice('armed',p,s,s.label);
+ }
+ shove(p:Player,dx:number,dz:number,now:number){
+  const l=Math.hypot(dx,dz);
+  if(!Number.isFinite(l)||l<.01||now-p.lastShove<4000||p.stun>0)return;
+  const dir={x:dx/l,z:dz/l};p.lastShove=now;p.stats.shoves++;
+  const target=[...this.players.values()].filter(q=>q.id!==p.id&&(q.state==='ok'||q.state==='hanging')&&!q.inVent&&Math.abs(q.y-p.y)<.8&&Math.hypot(q.x-p.x,q.z-p.z)<1.7&&((q.x-p.x)*dir.x+(q.z-p.z)*dir.z)>.2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
+  this.event('A SHOVE / FOOTSTEPS SCUFF ON CONCRETE');
+  if(!target)return;
+  if(target.state==='hanging'&&target.hang){target.hang.score-=HANG.shovePenalty;this.send(target.id,{t:'cue',kind:'hit'});this.bots.notice('edge',p,target);return;}
+  if(target.role==='specimen'&&this.mut(target,'plates'))return;
+  target.hold=null;this.toolPending.delete(target.id);
+  const next=moveWithCollisions(target,dir.x*1.6,dir.z*1.6,this.solids(),undefined,.1,target.role!=='specimen'&&now>target.noGrabUntil);
+  Object.assign(target,{x:next.x,y:next.y,z:next.z,vy:next.vy,fallStart:next.fallStart});
+  if(next.ledge){this.hangOn(target,next.ledge);this.bots.notice('edge',p,target);}
+  else if(target.role!=='specimen'){this.bots.notice('shove',p,target);if(target.bot)this.bots.notice('hit',p,target,target.id);}
+  this.send(target.id,{t:'cue',kind:'shoved'});
  }
  private applySabotage(id:string,now:number,p?:Player){
   const s=SABOTAGE.find(s=>s.id===id)!;
@@ -326,31 +384,64 @@ export default class Room implements Party.Server {
   this.send(target.id,{t:'cue',kind:'hit'});this.event('SOMETHING THREW SOMEONE');
  }
 
- // Solo stalker: patrols, hunts the nearest engineer it can reach, lunges, then backs off.
+ // The stalker: opens a safe about every two minutes, tears the coolant bypass when the core would
+ // kill it, then goes for the surface lift. Between objectives it patrols, ducts about, and hunts,
+ // circling round so its lunge throws people toward an open lip.
  private drive(p:Player,now:number,dt:number){
-  const ai=p.ai!;if(p.inVent||p.state!=='ok')return;
-  p.stage=Math.min(3,Math.floor((SHIFT_SECONDS-this.tLeft)/140));
+  const ai=p.ai!;if(p.inVent||p.state!=='ok'||p.hold)return;
+  const elapsed=SHIFT_SECONDS-this.tLeft;
   const prey=[...this.players.values()].filter(q=>humanRole(q)&&(q.state==='ok'||q.state==='hanging')&&Math.abs(q.y-p.y)<1.5).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
   const dist=prey?Math.hypot(prey.x-p.x,prey.z-p.z):Infinity;
-  const hunting=now>ai.retreatUntil&&!!prey&&(dist<9||(dist<20&&roomAt(prey.x,prey.z)?.name===roomAt(p.x,p.z)?.name));
+  let obj:{kind:string;at:{x:number;z:number};id?:string}|null=null;
+  if(!this.tutorial){
+   if(this.temp>=88&&now-p.lastSmash>SPECIMEN.smashCooldown*1000)obj={kind:'smash',at:REACTOR_SMASH};
+   else if(p.stage>=3&&now>(ai.escapeRetry||0))obj={kind:'escape',at:{x:LIFT_DOOR.x-2.6,z:LIFT_DOOR.z}};
+   else if(p.stage<3&&elapsed>=75+p.stage*115){const s=SAFES.filter(s=>!p.solved.includes(s.id)).sort((a,b)=>Math.hypot(a.stand.x-p.x,a.stand.z-p.z)-Math.hypot(b.stand.x-p.x,b.stand.z-p.z))[0];if(s)obj={kind:'safe',at:s.stand,id:s.id};}
+  }
+  const hunting=now>ai.retreatUntil&&!!prey&&(dist<(obj?5:9)||(!obj&&dist<20&&roomAt(prey.x,prey.z)?.name===roomAt(p.x,p.z)?.name));
   let goal:{x:number;z:number}|null=null;
   if(hunting){
-   if(dist<SPECIMEN.lungeRange-.2&&(now-p.lastLunge)/1000>=this.lungeCooldown(p)){this.lunge(p,prey!.x-p.x,prey!.z-p.z,now);ai.retreatUntil=now+9000;ai.path=[];return;}
-   if(dist<6)goal={x:prey!.x,z:prey!.z};
-   else if(now>ai.until){ai.path=navPath(p,prey!).slice(1);ai.until=now+1500;}
+   const ready=(now-p.lastLunge)/1000>=this.lungeCooldown(p);
+   const edge=ready&&dist<6?edgeDir(this.solids(),prey!,SPECIMEN.lungeKnock):null;
+   if(edge&&!(ai.flankSince&&now-ai.flankSince>4500)){
+    const spot={x:prey!.x-edge.x*1.3,z:prey!.z-edge.z*1.3};ai.flankSince||=now;
+    if(Math.hypot(spot.x-p.x,spot.z-p.z)<.6&&dist<SPECIMEN.lungeRange-.1){this.lunge(p,edge.x,edge.z,now);ai.retreatUntil=now+9000;ai.path=[];ai.flankSince=0;return;}
+    goal=spot;
+   }else if(ready&&dist<SPECIMEN.lungeRange-.2){this.lunge(p,prey!.x-p.x,prey!.z-p.z,now);ai.retreatUntil=now+9000;ai.path=[];ai.flankSince=0;return;}
+   else if(dist<6)goal={x:prey!.x,z:prey!.z};
+   else if(now>ai.until){ai.path=findPath(p,prey!,this.cameraOpened)||[];ai.until=now+1500;ai.obj='';}
+  }else if(obj){
+   const d=Math.hypot(obj.at.x-p.x,obj.at.z-p.z);
+   if(d<(obj.kind==='smash'?1.6:obj.kind==='escape'?.5:1.3)){
+    if(obj.kind==='safe'){
+     // Crouched over the safe, still and invisible, for fourteen seconds.
+     ai.workUntil||=now+14000;if(now<ai.workUntil)return;ai.workUntil=0;
+     p.solved.push(obj.id!);p.stage++;const slot=MUTATION_ORDER[p.stage-1];
+     if(slot&&this.offers[slot]){const opts=this.offers[slot].filter(id=>id!=='plates');p.mutations[slot]=opts[Math.floor(Math.random()*opts.length)]??this.offers[slot][0];}
+     this.event(`CONTAINMENT: ${SAFES.find(s=>s.id===obj!.id)!.name} OPENED`);ai.path=[];return;
+    }
+    const spec=this.holdSpec(p,obj.kind,'');
+    if(spec.ok){p.hold={kind:obj.kind,target:'',start:now,duration:spec.duration};if(obj.kind==='escape'){ai.escapeRetry=now+20000;this.event('THE SURFACE LIFT MOTOR WHINES / SOMETHING IS AT THE DOOR');}}
+    return;
+   }
+   const key=obj.kind+(obj.id||'');
+   if(ai.obj!==key||!ai.path.length){ai.obj=key;ai.path=findPath(p,obj.at,this.cameraOpened)||[];}
   }else if(!ai.path.length||now>ai.until){
    // Now and then it slips into the ducts instead of walking.
    const v=nearVent(p,2);if(v&&Math.random()<.35){const to=VENTS[Math.floor(Math.random()*VENTS.length)];p.inVent=true;p.vent={to:to.id,arrive:now+ventTravel(v,to)*1000};this.ventNoise(v.id);return;}
    const [x,z]=NAV[PATROL[Math.floor(Math.random()*PATROL.length)] as keyof typeof NAV];
-   ai.path=navPath(p,{x,z}).slice(1);ai.until=now+25000;
+   ai.path=findPath(p,{x,z},this.cameraOpened)||[];ai.until=now+25000;ai.obj='';
   }
-  if(!goal&&ai.path.length){goal=ai.path[0];if(Math.hypot(goal.x-p.x,goal.z-p.z)<.4){ai.path.shift();goal=ai.path[0]??null;}}
+  if(!goal&&ai.path.length){goal=ai.path[0];if(Math.hypot(goal.x-p.x,goal.z-p.z)<.15){ai.path.shift();goal=ai.path[0]??null;}}
   if(!goal)return;
   const dx=goal.x-p.x,dz=goal.z-p.z,l=Math.hypot(dx,dz);if(l<.05)return;
   const step=Math.min(l,this.speedOf(p)*dt);
   const next=moveWithCollisions(p,dx/l*step,dz/l*step,this.solids(),undefined,0,false);
   if(Math.hypot(next.x-p.x,next.z-p.z)>.005){p.stillSince=now;p.yaw=Math.atan2(-dx,-dz);}
   Object.assign(p,{x:next.x,y:next.y,z:next.z,vy:next.vy,fallStart:next.fallStart});
+  // Wedged on something: forget the route and plan again.
+  const c=ai.check??={x:p.x,z:p.z,at:now};
+  if(now-c.at>2000){if(Math.hypot(p.x-c.x,p.z-c.z)<.2){ai.path=[];ai.until=0;ai.obj='';}ai.check={x:p.x,z:p.z,at:now};}
  }
 
  // Training: scripted shove over a lip, a rescue, and a harmless stalker walking past.
@@ -391,7 +482,7 @@ export default class Room implements Party.Server {
   const p=this.players.get(sender.id);if(!p)return;
   const now=Date.now();
   if(m.t==='ready'&&this.phase==='lobby'){p.ready=!p.ready;this.broadcast();return;}
-  if(m.t==='start'&&this.phase==='lobby'&&sender.id===this.hostId){this.tutorial=!!m.tutorial;this.startBriefing();this.broadcast();return;}
+  if(m.t==='start'&&this.phase==='lobby'&&sender.id===this.hostId){this.tutorial=!!m.tutorial;this.fill=!!m.fill;this.startBriefing();this.broadcast();return;}
   if(m.t==='again'&&this.phase==='over'&&sender.id===this.hostId){this.phase='lobby';this.resetMatch();this.broadcast();return;}
   if(this.phase!=='shift')return;
   if(p.state==='dead'||p.state==='escaped'||p.state==='spectator'){if(m.t==='pos'&&Number.isFinite(m.x)&&Number.isFinite(m.z)){p.x=m.x;p.z=m.z;p.y=Number.isFinite(m.y)?m.y:p.y;}return;}
@@ -419,35 +510,18 @@ export default class Room implements Party.Server {
    const def=MACHINES.find(d=>d.id===m.id),st=this.machineState[m.id];if(!def||!st)return;
    if(nearMachine(p,1.8)?.id!==def.id||now<st.readyAt){this.send(p.id,{t:'machineResult',id:def.id,ok:false,reason:'NOT READY'});return;}
    const r=machineCheck(def.kind,machineSeed(this.seed,def.id,st.cycle),m.answer);
-   if(r.ok){
-    // A saboteur can work a machine to look busy; it does nothing for the core.
-    if(p.role==='saboteur'&&(def as any).sabEffect){this.temp=Math.min(100,this.temp+(def as any).sabEffect.temp);}
-    if(def.id==='harness')this.lastConsoleCycle={delta:p.role==='saboteur'?(def as any).sabEffect.temp:def.effect.temp,at:now};
-    if(p.role==='crew'){const e:any=def.effect;if(e.temp)this.temp=Math.max(0,this.temp+e.temp);if(e.pressure)this.pressure=Math.max(20,this.pressure+e.pressure);if(e.pin)this.send(p.id,{t:'note',text:`RADIO: CAMERA ROOM CODE ${accessPuzzle(this.seed).pin.split('').join(' ')}`});}
-    p.stats.tasks++;st.cycle++;st.readyAt=now+def.cooldown*1000;this.event(`${def.label} / SERVICED`);
-   }
+   if(r.ok)this.serviceMachine(p,def,now);
    this.send(p.id,{t:'machineResult',id:def.id,ok:r.ok,reason:r.reason});return;
   }
   if(m.t==='sabStart'&&p.role==='saboteur'&&p.state==='ok'){
    const s=SABOTAGE.find(s=>s.id===m.id);if(!s||Math.hypot(p.x-s.x,p.z-s.z)>1.8||now-p.lastSabotage<SAB_COOLDOWN*1000||this.armed.has(s.id))return;
-   this.sabWork.set(p.id,{id:s.id,start:now});
-   // The work is loud: anyone within 14 m hears metal shriek, sparks or clicking.
-   for(const q of this.players.values())if(!q.bot&&q.id!==p.id&&Math.hypot(q.x-s.x,q.z-s.z)<14)this.send(q.id,{t:'cue',kind:s.id==='valve'?'squeal':s.id==='breaker'?'spark':'tamper',x:s.x,z:s.z});
-   return;
+   this.sabNoise(p,s,now);return;
   }
   if(m.t==='sabDone'&&p.role==='saboteur'&&p.state==='ok'){
    const w=this.sabWork.get(p.id),s=SABOTAGE.find(s=>s.id===m.id);if(!w||!s||w.id!==s.id||Math.hypot(p.x-s.x,p.z-s.z)>1.8)return;
-   const r:any=sabCheck(s.id,this.seed,m.answer);this.sabWork.delete(p.id);
-   if(!r.ok){
-    if(r.shock){p.stun=1.6;this.event('SPARKS AND A SCREAM IN THE SUBSTATION');for(const q of this.players.values())if(!q.bot&&Math.hypot(q.x-s.x,q.z-s.z)<20)this.send(q.id,{t:'cue',kind:'spark'});}
-    if(r.tamper){this.logLine(`CAM ${s.label.slice(-2)} / TAMPER ALERT`);this.event('SCIF / CAMERA TAMPER ALERT');}
-    this.send(p.id,{t:'sabResult',ok:false,reason:r.reason});return;
-   }
-   // Armed, not instant: every engineer gets a warning and seconds to stop it.
-   p.lastSabotage=now;this.armed.set(s.id,{at:now+SAB_ARM_SECONDS*1000,by:p.id});this.witness(s);
-   this.event(`WARNING / ${s.label} / ${SAB_ARM_SECONDS} SECONDS`);
-   for(const q of this.players.values())if(!q.bot&&q.role!=='specimen')this.send(q.id,{t:'cue',kind:'warn'});
-   this.send(p.id,{t:'sabResult',ok:true});return;
+   const r:any=sabCheck(s.id,this.seed,m.answer);
+   if(!r.ok){this.sabFail(p,s,now,r);this.send(p.id,{t:'sabResult',ok:false,reason:r.reason});return;}
+   this.armSabotage(p,s,now);this.send(p.id,{t:'sabResult',ok:true});return;
   }
   if(m.t==='hold'){const spec=this.holdSpec(p,String(m.kind),String(m.target??''));if(spec.ok)p.hold={kind:String(m.kind),target:String(m.target??''),start:now,duration:spec.duration};else if(spec.why)this.send(p.id,{t:'note',text:spec.why});return;}
   if(m.t==='release'){p.hold=null;return;}
@@ -467,21 +541,7 @@ export default class Room implements Party.Server {
    if(result.ok){p.solved.push(id);p.stage++;p.offer=MUTATION_ORDER[p.stage-1]??null;this.event(`CONTAINMENT: ${SAFES.find(s=>s.id===id)!.name} OPENED`);}
    this.send(p.id,{t:'safeResult',safe:id,ok:result.ok,reason:result.reason});return;
   }
-  if(m.t==='shove'&&humanRole(p)){
-   const dx=Number(m.dx),dz=Number(m.dz),l=Math.hypot(dx,dz);
-   if(!Number.isFinite(l)||l<.01||now-p.lastShove<4000||p.stun>0)return;
-   const dir={x:dx/l,z:dz/l};p.lastShove=now;p.stats.shoves++;
-   const target=[...this.players.values()].filter(q=>q.id!==p.id&&(q.state==='ok'||q.state==='hanging')&&!q.inVent&&Math.abs(q.y-p.y)<.8&&Math.hypot(q.x-p.x,q.z-p.z)<1.7&&((q.x-p.x)*dir.x+(q.z-p.z)*dir.z)>.2).sort((a,b)=>Math.hypot(a.x-p.x,a.z-p.z)-Math.hypot(b.x-p.x,b.z-p.z))[0];
-   this.event('A SHOVE / FOOTSTEPS SCUFF ON CONCRETE');
-   if(!target)return;
-   if(target.state==='hanging'&&target.hang){target.hang.score-=HANG.shovePenalty;this.send(target.id,{t:'cue',kind:'hit'});return;}
-   if(target.role==='specimen'&&this.mut(target,'plates'))return;
-   target.hold=null;this.toolPending.delete(target.id);
-   const next=moveWithCollisions(target,dir.x*1.6,dir.z*1.6,this.solids(),undefined,.1,target.role!=='specimen'&&now>target.noGrabUntil);
-   Object.assign(target,{x:next.x,y:next.y,z:next.z,vy:next.vy,fallStart:next.fallStart});
-   if(next.ledge)this.hangOn(target,next.ledge);
-   this.send(target.id,{t:'cue',kind:'shoved'});return;
-  }
+  if(m.t==='shove'&&humanRole(p)){this.shove(p,Number(m.dx),Number(m.dz),now);return;}
   if(m.t==='radio'&&humanRole(p)){
    if(!nearStation(p,SCIF_DESK,2.6)||!this.cameraOpened||!this.tubes.powered||now-p.lastRadio<2500)return;
    const text=String(m.text||'').toUpperCase().replace(/[^A-Z0-9 /.,!?'-]/g,'').slice(0,60);if(!text)return;

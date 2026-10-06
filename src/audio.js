@@ -135,6 +135,8 @@ export class BunkerAudio {
       case 'snip':this.burst(t,{type:'highpass',freq:4000,dur:.006,vol:.15,attack:.0005});this.ring(t+.004,{freqs:[3100,4700],q:30,vol:.05,dur:.12});this.burst(t+.05,{type:'highpass',freq:5000,dur:.004,vol:.08,attack:.0005});return;
       case 'cable':this.burst(t,{type:'lowpass',freq:700,dur:.12,vol:.08});this.burst(t+.02,{freq:2400,q:3,dur:.04,vol:.03});return;
       // Radio time signal: five short pips and a long sixth on the minute.
+      // A muffled voice through a gas mask: a few formant-filtered bursts.
+      case 'voice':for(let k=0;k<4;k++)this.burst(t+k*.07+Math.random()*.03,{freq:500+Math.random()*700,q:5,dur:.06,vol:.035,bus:this.ui});return;
       case 'pip':this.tone(t,{freq:1000,dur:.1,vol:.07,attack:.003,bus:this.ui});return;
       case 'pipLong':this.tone(t,{freq:1000,dur:.5,vol:.08,attack:.003,bus:this.ui});return;
       case 'latch':this.burst(t,{type:'lowpass',freq:500,dur:.08,vol:.14});this.ring(t+.01,{freqs:[310,770,1240],q:25,vol:.05,dur:.35});return;

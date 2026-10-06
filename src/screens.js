@@ -22,7 +22,8 @@ export function renderLobby(state,me,code){
  $('lobby-list').replaceChildren(...list.map(p=>{const li=document.createElement('li');li.className=(p.ready?'ready ':'')+(p.line===me.line?'me':'');li.innerHTML=`<span>LINE ${p.line}${p.host?' ★':''}</span><i>${p.line===me.line?'YOU / ':''}${p.ready?'READY':'WAITING'}</i>`;return li;}));
  const n=list.length,c=roleCounts(n);
  $('lobby-roles').textContent=n<=1?'ALONE: YOU WORK THE SHIFT, THE STALKER HUNTS YOU. INVITE PEOPLE FOR THE REAL GAME.':`${n} PLAYERS: ${c.crew} ENGINEER${c.crew>1?'S':''} / ${c.saboteur?'1 SABOTEUR / ':''}1 SPECIMEN. ROLES ARE SECRET.${n<4?' A SABOTEUR JOINS AT 4 PLAYERS.':''}`;
- $('start').hidden=!host;$('start').disabled=!host;
+ $('start').hidden=!host;$('start').disabled=!host;$('fill-wrap').hidden=!host;
+ if($('fill-bots').checked&&n<5&&host)$('lobby-roles').textContent=`${n} ${n>1?'PEOPLE':'PERSON'} + ${5-n} BOT${5-n>1?'S':''}: 3 ENGINEERS / 1 SABOTEUR / 1 SPECIMEN. ANYONE, BOT OR NOT, CAN BE ANY ROLE. ROLES ARE SECRET.`;
  $('ready').textContent=list.find(p=>p.line===me.line)?.ready?'NOT READY':'READY';
  const ready=list.filter(p=>p.ready).length;
  $('lobby-wait').textContent=host?`${ready}/${n} READY. YOU ARE THE HOST: START WHEN EVERYONE IS IN.`:'WAITING FOR THE HOST TO START THE SHIFT.';
@@ -43,7 +44,7 @@ export function renderOver(state,me){
  const roleName={crew:'ENGINEER',saboteur:'SABOTEUR',specimen:'SPECIMEN-09'};
  const status={ok:'ALIVE',hanging:'HANGING',taped:'TAPED',dead:'FELL',escaped:'ESCAPED',spectator:'WATCHING'};
  $('over-roster').tBodies[0].replaceChildren(...o.roster.map(p=>{const tr=document.createElement('tr');tr.className=(o.winners.includes(p.id)?'win ':'')+(p.id===me.id?'me':'');
-  tr.innerHTML=`<td>${p.bot?'—':p.line}</td><td>${p.callsign}</td><td>${roleName[p.role]||'—'}</td><td>${status[p.state]||p.state}</td><td>${p.stats.tasks}</td><td>${p.stats.sabotage}</td><td>${p.stats.rescues}</td><td>${p.stats.shoves+p.stats.lunges}</td>`;return tr;}));
+  tr.innerHTML=`<td>${p.line||'—'}</td><td>${p.callsign}${p.bot&&p.callsign!=='STALKER'?' <small>BOT</small>':''}</td><td>${roleName[p.role]||'—'}</td><td>${status[p.state]||p.state}</td><td>${p.stats.tasks}</td><td>${p.stats.sabotage}</td><td>${p.stats.rescues}</td><td>${p.stats.shoves+p.stats.lunges}</td>`;return tr;}));
  const host=state.host===me.id;$('again').hidden=!host;$('over-wait').textContent=host?'':'THE HOST CAN START A NEW SHIFT.';
 }
 export function bindCopy(getCode){$('copy-link').onclick=async()=>{const link=inviteLink(getCode());try{await navigator.clipboard.writeText(link);$('copy-status').textContent='COPIED: '+link;}catch{$('copy-status').textContent=link;}};}

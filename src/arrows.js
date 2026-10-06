@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {SABOTAGE,CAMERAS} from '../shared/stations.js';
+import {LIFT_DOOR} from '../shared/wings.js';
 
 // Crisis pointers, like the arrows Among Us shows during a sabotage: every live emergency gets a cyan
 // marker over the spot, or an arrow pinned to the screen edge when it is off-screen, with the distance.
@@ -14,6 +15,7 @@ export function createArrows(){
   if(s.valve&&!s.armed?.some(a=>a.id==='valve')){const t=sab('valve');out.push({x:t.x,y:0,z:t.z,label:'COOLANT VALVE REVERSED'});}
   if(s.blackout&&!s.armed?.some(a=>a.id==='breaker')){const t=sab('breaker');out.push({x:t.x,y:0,z:t.z,label:'RESET MAIN BREAKER'});}
   for(const id of s.cut||[]){const c=CAMERAS.find(c=>c.id===id);if(c)out.push({x:c.box.x,y:0,z:c.box.z,label:`SPLICE CAM ${c.label.slice(0,2)}`});}
+  if(s.specimen?.hold==='escape')out.push({x:LIFT_DOOR.x,y:0,z:LIFT_DOOR.z,label:'STOP IT / SURFACE LIFT',hot:true});
   for(const p of s.players||[])if(p.id!==me.id&&p.state==='hanging')out.push({x:p.x,y:p.y,z:p.z,label:'MAN OVER THE EDGE',hot:true});
   return out;
  }

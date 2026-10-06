@@ -93,6 +93,15 @@ const send=m=>{if(sock?.readyState===1)sock.send(JSON.stringify(m));};
 const position=new THREE.Vector3(0,0,2);position.vy=0;position.fallStart=0;position.stun=0;
 let yaw=0,pitch=0,sensitivity=1;
 const note=t=>{$('note').textContent=t;noteUntil=performance.now()+2600;};
+// Spoken lines from bot engineers: subtitles with where the voice came from.
+const sayLines=[];
+function say(m){
+ const dx=m.x-position.x,dz=m.z-position.z,d=Math.hypot(dx,dz),rel=Math.atan2(-dx,-dz)-yaw,side=Math.sin(rel);
+ const where=d<4?'':Math.cos(rel)<-.5?'BEHIND':side>.35?'LEFT':side<-.35?'RIGHT':'AHEAD';
+ sayLines.push({html:`<b>${m.name}</b>${where?`<i>${Math.round(d)} M ${where}</i>`:''}`,text:m.text,until:performance.now()+5200});if(sayLines.length>3)sayLines.shift();
+ audio.cue('voice');renderSay();
+}
+function renderSay(){const now=performance.now();while(sayLines.length&&sayLines[0].until<now)sayLines.shift();$('say').replaceChildren(...sayLines.map(l=>{const p=document.createElement('p');p.innerHTML=l.html;p.append(l.text);return p;}));}
 const tutorial=createTutorial({send,done:()=>leave()});
 const has=id=>Object.values(me.mutations||{}).includes(id);
 const SABOTAGE_LABELS={valve:'pump room valve',breaker:'substation breaker',doors:'tunnel blast doors','coax-core':'camera 01 cable','coax-coolant':'camera 02 cable','coax-filters':'camera 03 cable','coax-e-hall':'camera 04 cable','coax-w-hall':'camera 05 cable','coax-pumps':'camera 06 cable'};
@@ -336,7 +345,7 @@ $('host').onclick=()=>join(newCode());
 $('join-form').onsubmit=e=>{e.preventDefault();join($('room').value);};
 $('solo').onclick=()=>join('SOLO-'+newCode(),{start:{}});
 $('training').onclick=()=>{training=true;join('TRAIN-'+newCode(),{start:{tutorial:true}});};
-$('ready').onclick=()=>send({t:'ready'});$('start').onclick=()=>send({t:'start'});$('leave-lobby').onclick=leave;
+$('ready').onclick=()=>send({t:'ready'});$('start').onclick=()=>send({t:'start',fill:$('fill-bots').checked});$('leave-lobby').onclick=leave;
 $('again').onclick=()=>send({t:'again'});$('over-home').onclick=leave;
 bindCopy(()=>code);
 const params=new URLSearchParams(location.search);
@@ -348,6 +357,7 @@ function onMessage(m){
  if(m.t==='state'){applyState(m);return;}
  if(m.t==='cue'){audio.cue(m.kind);if(m.kind==='vent'){const v=VENTS.reduce((b,v)=>Math.hypot(v.x-m.x,v.z-m.z)<Math.hypot(b.x-m.x,b.z-m.z)?v:b);bunker.stations.rattle(v.id);}if(m.kind==='hit'||m.kind==='shoved')shake=.4;if(m.kind==='pulse')note('A WET CLICKING FILLS THE AIR');return;}
  if(m.t==='note'){note(m.text);return;}
+ if(m.t==='say'){say(m);return;}
  if(m.t==='radio'){$('radio').hidden=false;$('radio-text').textContent=m.text;radioUntil=performance.now()+9000;audio.cue('radio');return;}
  if(m.t==='pulse'){pulseUntil=performance.now()+2000;return;}
  if(m.t==='ventOpen'){freeMouse();ventMap.open(m.from);return;}
@@ -494,7 +504,7 @@ function loop(now){
   canvas.style.filter=spec?(me.stage===0&&!has('thermal')?'blur(1.4px) saturate(.5)':me.stage<2?'blur(.6px)':''):me.state==='dead'?'grayscale(.8)':'';
   if(training)tutorial.update({position,yaw,state:st,me,held:held?.kind});
  }else canvas.style.filter='';
- if(now>radioUntil)$('radio').hidden=true;if(now>noteUntil)$('note').textContent='';
+ if(now>radioUntil)$('radio').hidden=true;if(sayLines.length&&sayLines[0].until<now)renderSay();if(now>noteUntil)$('note').textContent='';
  coolant.update(coolantState);if(coolant.isOpen&&!atCoolantStation(position))coolant.close();
  facilityPanels.update(coolantState);tubes.update(tubesState);relay.update(relayState);
  if(relay.isOpen&&Math.hypot(position.x-CONSOLE_POSITION.x,position.z-CONSOLE_POSITION.z)>ACTION_RANGE)relay.close();

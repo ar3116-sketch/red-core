@@ -9,7 +9,7 @@
   <nav class="home-menu">
    <button id="host" class="big">HOST A SHIFT <small>CREATE A ROOM / SHARE THE CODE</small></button>
    <form id="join-form" class="join-row"><label for="room">ROOM CODE</label><input id="room" maxlength="16" autocomplete="off" spellcheck="false" placeholder="ABCD"><button id="go">JOIN</button></form>
-   <button id="solo">PLAY SOLO <small>YOU AGAINST THE STALKER</small></button>
+   <button id="solo">PLAY SOLO <small>YOU + 3 BOT ENGINEERS VS THE STALKER. ONE OF YOU IS THE SABOTEUR.</small></button>
    <button id="training">TRAINING <small>3 MINUTES / LEARN THE BUNKER</small></button>
    <button id="howto-open">HOW TO PLAY</button>
    <span id="st" role="status"></span>
@@ -38,6 +38,7 @@
  <div class="lobby-share"><canvas id="lobby-qr" width="132" height="132" aria-label="QR code for this room"></canvas><div><p>Friends join at this page with the code, or scan the QR on a phone.</p><button id="copy-link">COPY INVITE LINK</button><small id="copy-status" role="status"></small></div></div>
  <ol id="lobby-list" aria-label="Players"></ol>
  <p id="lobby-roles" class="muted"></p>
+ <label id="fill-wrap" class="fill"><input type="checkbox" id="fill-bots" checked> FILL EMPTY SLOTS WITH BOTS (UP TO 5)</label>
  <div class="lobby-actions"><button id="ready">READY</button><button id="start" class="big">START SHIFT</button><button id="leave-lobby">LEAVE</button></div>
  <p id="lobby-wait" class="muted"></p>
 </section>
@@ -64,6 +65,7 @@
 <div id="spec-hud" class="hud-el" hidden><div id="spec-stage"></div><div class="cool"><span>LUNGE</span><i><em id="lunge-bar"></em></i></div><div id="spec-abilities"></div></div>
 <div id="radio" class="hud-el" hidden role="status"><small>FIELD RADIO / TAPE DELAY 10.0s</small><p id="radio-text"></p></div>
 <div id="note" class="hud-el" role="status"></div>
+<div id="say" class="hud-el" aria-live="polite"></div>
 <div id="hold-ring" class="hud-el" hidden><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="16"/><circle id="hold-arc" cx="20" cy="20" r="16"/></svg></div>
 <section id="beat" hidden aria-label="Grip"><div class="eyebrow" id="beat-title">HOLD ON</div><div id="beat-hands"></div><div id="beat-track"><i id="beat-zone"></i><b id="beat-cursor"></b></div><div id="beat-meter"><em id="beat-score"></em><i class="half"></i></div><p id="beat-help">SPACE / TAP ON THE BEAT</p></section>
 <div id="vignette" aria-hidden="true"></div>

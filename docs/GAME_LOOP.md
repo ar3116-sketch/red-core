@@ -12,7 +12,8 @@ HOME ──► LOBBY ──► BRIEFING (7 s) ──► SHIFT (8 min) ──► 
 ```
 
 - **Host a shift** creates a 4-letter room. Friends join with the code, the QR or the invite link.
-- **Play solo** pits you against the AI stalker.
+- **Play solo** puts you on a shift with 3 bot engineers against the AI stalker. One of the four of you, maybe you, is secretly the saboteur.
+- **Fill with bots** (host checkbox in the lobby) tops a room of 1–4 people up to 5 bodies, so even two friends get a full match with every role.
 - **Training** is a guided 3-minute shift on a private server room. It covers look, walk, the reactor harness, tools, leaks, going over a lip, the monster's shadow, the saboteur and the SCIF.
 - **Roles are hidden.** The server never sends anyone else's role to your client until the shift report.
 
@@ -20,6 +21,7 @@ HOME ──► LOBBY ──► BRIEFING (7 s) ──► SHIFT (8 min) ──► 
 
 | Players | Engineers | Saboteur | Specimen-09 |
 |---|---|---|---|
+| Solo | you + 3 bots (one of the four is the saboteur) | 1 | AI stalker |
 | 1 | you | — | AI stalker |
 | 2–3 | rest | — | 1 player |
 | 4–8 | rest | 1 | 1 player |
@@ -120,7 +122,28 @@ Evolve, then escape. Kill when it pays. Save the reactor when you must.
 - **Self-preservation:** at the reactor console it can **tear the coolant bypass** (core −12%, 40 s cooldown). A meltdown kills it too, so it sometimes has to save the crew.
 - **Escape:** after three safes, hold E at the surface lift door (far east) for 6 s (3 s with Breaker Arms).
 
-## 8. Confrontation without meetings
+## 8. Bots
+
+Bots live in the room like players. They wear the same suit and are named in the shift report.
+
+- **Bot engineers:**
+  - They path across the map on a 0.5 m walkability grid and work the machines, which takes them 12–19 s each.
+  - They run to armed sabotage only if they can make it in time, repair valves, breakers and camera cables, open the camera room and seat its tubes, and pull people off lips.
+  - They shove the specimen off themselves, and two of them guard the surface lift once all three safes are open.
+- **What they notice:**
+  - Bots notice sabotage noise, a sabotage being armed, a console showing `LAST CYCLE +5%`, and shoves, but only things they could see or hear from where they stand.
+  - Enough evidence and a bot says so out loud ("I SAW SOMEONE AT THE COOLANT VALVE. HELP ME TAPE THEM."). Then it tries to tape that person; a second bot, or you holding T, completes the tape.
+- **Bot saboteur:**
+  - It works machines to look busy and sabotages only when nobody is in sight, preferring the coolant valve.
+  - It shoves people off lips when unwatched. If someone is hanging and nobody can see, it shoves them again; if someone can see, it plays the hero and pulls them up.
+- **The stalker:**
+  - It opens a safe about every two minutes, crouched still and invisible for 14 s each.
+  - It tears the coolant bypass when the core would kill it, then pries the surface lift.
+  - It circles prey to lunge them toward an open lip.
+- **Bot speech:** lines show as subtitles for anyone within about 22 m, with distance and direction ("PAVEL 6 M LEFT: IT'S IN THE REACTOR HALL!").
+- **Balance check:** `node tools/check-bots.mjs` plays whole shifts offline with a fake clock. All-bot shifts end about 46% lockdown, 33% meltdown and 21% escape.
+
+## 9. Confrontation without meetings
 
 - **Shove (F):** 1.6 m push with a 4 s cooldown. On flat floor it's a nuisance; at a broken rail it can kill.
 - **Going over the lip:** step or get pushed off an edge above a drop of 4.5 m or more and you **catch the lip**. The grip bar runs in time with your heartbeat:
@@ -137,7 +160,7 @@ Evolve, then escape. Kill when it pays. Save the reactor when you must.
 - **Duct tape (T):** two people holding T on the same person for 4 s tape them to a pipe. The taped player tears free by hitting 8 beats (a miss loses one), or is freed automatically after 60 s. Breaking free gives 9 s of adrenaline at ×2.1 speed. Anyone can cut the tape in 2 s.
 - **SCIF radio:** in the powered camera room, the operator patches **one line** at a time and sends a callout ("SPECIMEN SEEN / EAST HALL") or a short typed message. It arrives on that player's HUD **10 seconds later**, so callouts have to predict where things will be.
 
-## 9. The map
+## 10. The map
 
 - **Core:** six core rooms (workshop, control, extraction, pump room, reactor hall, containment), the reactor core, the camera room and the incinerator.
 - **Below:** a two-level sewer with the coolant basin.
@@ -148,7 +171,7 @@ Evolve, then escape. Kill when it pays. Save the reactor when you must.
 
 Crossing the map end to end takes about 34 s at walking speed. Lethal edges cluster where the work is, so tasks pull people to the drops.
 
-## 10. A typical 5-player shift
+## 11. A typical 5-player shift
 
 ```
 0:00  Briefing ends. 3 engineers, 1 saboteur, 1 specimen (in the core vents). Core 50%.
@@ -168,9 +191,11 @@ Crossing the map end to end takes about 34 s at walking speed. Lethal edges clus
       QUARANTINE LOCKDOWN. Engineers win.
 ```
 
-## 11. Where it lives in the code
+## 12. Where it lives in the code
 
-- `server/room.ts`: the authoritative rules for everything above.
+- `server/room.ts`: the authoritative rules for everything above, plus the stalker AI.
+- `server/bots.ts`: bot engineers and bot saboteurs.
+- `shared/botnav.js`: the walkability grid and A* the bots and the stalker path on.
 - `shared/`: rules both sides run:
   - `match.js`: roles, timings, win conditions
   - `machines.js`: machine puzzles and sabotage minigames
