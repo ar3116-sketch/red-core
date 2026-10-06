@@ -4,6 +4,7 @@ import { SEWER_SURFACES,SEWER_COLLIDERS,onSurface,surfaceY } from './sewer.js';
 import { CONSOLE_POSITION } from './constants.js';
 import {WING_WALLS,WING_SURFACES,WING_FIXTURES,SHAFT_COLLIDERS,wingAt} from './wings.js';
 import {HANGAR,HANGAR_SURFACES,HANGAR_WALLS,HANGAR_COLLIDERS} from './hangar.js';
+import {FURNITURE_SOLIDS} from './furniture.js';
 
 export const ROOMS = [
  {id:'workshop',name:'WORKSHOP',x:-10,z:0,color:0x9b8653},
@@ -94,6 +95,7 @@ export const SOLIDS=[
  ...SHAFT_COLLIDERS,
  ...HANGAR_COLLIDERS,
  ...WING_FIXTURES.map(f=>({id:f.id,minX:f.x-f.w/2,maxX:f.x+f.w/2,minZ:f.z-f.d/2,maxZ:f.z+f.d/2,minY:0,maxY:f.h})),
+ ...FURNITURE_SOLIDS,
 ];
 const OPEN_SOLIDS=SOLIDS.filter(s=>s.id!=='camera-door');
 const DOOR_SOLIDS=[{id:'east-door',minX:15.25,maxX:15.65,minZ:-4,maxZ:-1,minY:0,maxY:2.8},{id:'west-door',minX:-15.65,maxX:-15.25,minZ:-12,maxZ:-9,minY:0,maxY:2.8}];

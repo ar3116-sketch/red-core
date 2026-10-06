@@ -12,6 +12,7 @@ import {buildWings} from './wings.js';
 import {buildStations} from './stations-view.js';
 import {buildHangar} from './hangar.js';
 import {decorate} from './decor.js';
+import {buildFurniture} from './furnish.js';
 import { ROOMS, WALLS, DOORS, FIXTURES } from '../shared/world.js';
 import { CONSOLE_POSITION } from '../shared/constants.js';
 
@@ -262,6 +263,7 @@ export function buildBunker(scene) {
 
   buildHangar(scene,{box,roomSign,steel,dark,rust,hazard});
   decorate(scene);
+  buildFurniture(scene,{steel,dark,rust});
   const stations=buildStations(scene);
   addWorldDetail(scene);
   batchStatic(scene);
