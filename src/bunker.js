@@ -283,7 +283,7 @@ export function buildBunker(scene) {
     }
   }
 
-  buildHangar(scene,{box,roomSign,steel,dark,rust,hazard});
+  const hangar=buildHangar(scene,{box,roomSign,steel,dark,rust,hazard});
   decorate(scene);
   buildFurniture(scene,{steel,dark,rust});
   const mainframe=buildMainframe(scene);
@@ -291,5 +291,5 @@ export function buildBunker(scene) {
   addWorldDetail(scene);
   batchStatic(scene);
   update(1, 50, 20, false);
-  return { screen, update,renderFeeds:facility.renderFeeds,facility,stations,wings,consoleScreen:{crtCtx,crtTexture} };
+  return { screen, update,renderFeeds:facility.renderFeeds,facility,stations,wings,hangar,consoleScreen:{crtCtx,crtTexture} };
 }

@@ -11,13 +11,25 @@ export const HANGAR_GALLERIES=[
  {id:'g-bridge',minX:40.5,maxX:43.5,minZ:15.5,maxZ:44.5,y:0},
 ];
 export const HANGAR_FLOOR={minX:25.5,maxX:58.5,minZ:15.5,maxZ:44.5,y:-8};
-export const HANGAR_SURFACES=[...HANGAR_GALLERIES,HANGAR_FLOOR,HANGAR_STAIR];
+// Buran flight deck, the stair truck's platform outside the port hatch, and the truck's stair.
+export const BURAN_CABIN={id:'buran-cabin',minX:40.25,maxX:43.75,minZ:23.5,maxZ:27.4,y:-6.2};
+export const BURAN_PLATFORM={id:'buran-platform',minX:37.6,maxX:40.25,minZ:25.4,maxZ:27,y:-6.2};
+export const BURAN_STAIR={id:'buran-stair',steps:12,minX:37.6,maxX:38.8,minZ:19.4,maxZ:25.4,startY:-8,endY:-6.2};
+export const HANGAR_SURFACES=[...HANGAR_GALLERIES,HANGAR_FLOOR,HANGAR_STAIR,BURAN_CABIN,BURAN_PLATFORM,BURAN_STAIR];
 // Orbiter and scaffold footprints on the floor (centre x 42, nose pointing north).
 export const BURAN={x:42,z:31,length:22,span:14};
 export const HANGAR_FIXTURES=[
- {id:'buran-body',x:42,z:31,w:3.4,d:20,minY:-8,maxY:-3},
- {id:'buran-wing-w',x:38.2,z:35.5,w:4.6,d:6,minY:-8,maxY:-6.2},{id:'buran-wing-e',x:45.8,z:35.5,w:4.6,d:6,minY:-8,maxY:-6.2},
- {id:'scaffold-nw',x:36.5,z:22,w:3,d:3,minY:-8,maxY:-2},{id:'scaffold-ne',x:47.5,z:22,w:3,d:3,minY:-8,maxY:-2},
+ // The fuselage is solid except the flight deck, which you board by the stair truck on the port side.
+ {id:'buran-nose',x:42,z:22.2,w:4,d:2.6,minY:-8,maxY:-3},{id:'buran-aft',x:42,z:34.45,w:4,d:14.1,minY:-8,maxY:-3},
+ {id:'buran-under',x:42,z:25.45,w:4,d:3.9,minY:-8,maxY:-6.3},
+ {id:'buran-wall-w1',x:40.1,z:24.55,w:.3,d:2.1,minY:-6.3,maxY:-3},{id:'buran-wall-w2',x:40.1,z:27.1,w:.3,d:.6,minY:-6.3,maxY:-3},
+ {id:'buran-wall-e',x:43.9,z:25.45,w:.3,d:3.9,minY:-6.3,maxY:-3},
+ {id:'buran-seat-l',x:40.95,z:24.75,w:.8,d:.9,minY:-6.3,maxY:-5.1},{id:'buran-seat-r',x:43.05,z:24.75,w:.8,d:.9,minY:-6.3,maxY:-5.1},
+ {id:'buran-console',x:42,z:23.9,w:.6,d:.8,minY:-6.3,maxY:-5.3},
+ {id:'buran-strake-w',x:39.6,z:30,w:.8,d:4,minY:-8,maxY:-5.9},{id:'buran-strake-e',x:44.4,z:30,w:.8,d:4,minY:-8,maxY:-5.9},
+ {id:'buran-wing-w',x:37.6,z:35.7,w:4.8,d:7.4,minY:-8,maxY:-5.9},{id:'buran-wing-e',x:46.4,z:35.7,w:4.8,d:7.4,minY:-8,maxY:-5.9},
+ {id:'buran-tip-w',x:35.1,z:37.2,w:.8,d:4.4,minY:-8,maxY:-5.9},{id:'buran-tip-e',x:48.9,z:37.2,w:.8,d:4.4,minY:-8,maxY:-5.9},
+ {id:'scaffold-nw',x:35.2,z:22,w:3,d:3,minY:-8,maxY:-2},{id:'scaffold-ne',x:47.5,z:22,w:3,d:3,minY:-8,maxY:-2},
  {id:'scaffold-sw',x:35,z:40.5,w:3,d:2.5,minY:-8,maxY:-3},{id:'scaffold-se',x:49,z:40.5,w:3,d:2.5,minY:-8,maxY:-3},
  {id:'hangar-crates-a',x:54,z:19,w:2,d:2,minY:-8,maxY:-6.6},{id:'hangar-crates-b',x:31,z:43,w:2.4,d:1.4,minY:-8,maxY:-6.8},
  {id:'hangar-tug',x:52,z:37,w:2.2,d:3.6,minY:-8,maxY:-6.6},

@@ -38,6 +38,7 @@ import {renderObjectives,renderSpecimen} from './hud.js';
 import {createTutorial} from './tutorial.js';
 import {createDiegetic} from './diegetic.js';
 import {createMachines} from './machines.js';
+import {createArrows} from './arrows.js';
 import {MACHINES,nearMachine,machineSeed,puzzle,sabPuzzle} from '../shared/machines.js';
 import {SAB_COOLDOWN} from '../shared/stations.js';
 import {COOLANT_STATION} from '../shared/coolant.js';
@@ -124,10 +125,11 @@ function taskSound(kind,v=1){
  const now=performance.now(),gap={turn:90,tick:45,squeal:240,spark:160}[kind]??60;if(now-(lastFoley[kind]||0)<gap)return;lastFoley[kind]=now;
  audio.cue(kind==='turn'?'creak':kind);
 }
+const arrows=createArrows();
 const machines=createMachines(scene,{camera,canvas,
  onAnswer:a=>{const m=machines.active;if(m)send({t:'machine',id:m.id,answer:a});},
  onSabAnswer:a=>{const m=machines.active;if(m)send({t:'sabDone',id:m.id,answer:a});},
- onSound:taskSound,onExit:()=>{keys.clear();audio.stopLoops?.();}});
+ onSound:taskSound,onAction:m=>send(m),crane:bunker.hangar?.crane,onExit:()=>{keys.clear();audio.stopLoops?.();}});
 for(const [id,a,w] of [['relay-panel',{x:0,y:1.2,z:-7.5},.95],['coolant-panel',{x:COOLANT_STATION.x,y:COOLANT_STATION.y+1.25,z:COOLANT_STATION.z},.9],['access-panel',{x:-14.75,y:1.45,z:-3.3},.85],['burn-panel',{x:21,y:1.35,z:-7.75},.85],['tube-panel',{x:-20.85,y:1.25,z:-1},.85],['chess-panel',{x:10,y:1.15,z:-13.3},.8],['sweeper-panel',{x:-35,y:1.2,z:-15.7},.8],['scope-panel',{x:40.1,y:1.2,z:-10},.85],['scif-panel',{x:-20.9,y:1.6,z:-1},.95]])diegetic.add(id,()=>a,w);
 
 // ---------- peers ----------
@@ -194,6 +196,7 @@ function updateSenses(players,now){
 addEventListener('keydown',event=>{
  if(event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement)return;
  if(event.code==='Escape'){event.preventDefault();if(machines.active){machines.close();return;}if(blockers().length){for(const p of blockers())p.close();return;}if(getMode()==='shift')setPause($('pause').hidden);else if(getMode()==='howto')showHome();return;}
+ if(getMode()==='shift'&&machines.active&&machines.key(event.code,true)){event.preventDefault();return;}
  if(getMode()!=='shift'||panelOpen())return;
  if(event.code==='Space'){event.preventDefault();if(!event.repeat)beatPress();if(me.state!=='dead')return;}
  if(event.code==='Tab')return;
@@ -206,7 +209,7 @@ addEventListener('keydown',event=>{
  }
  keys.add(event.code);
 });
-addEventListener('keyup',event=>{keys.delete(event.code);if(holding&&holding.key===event.code)stopInteract();});
+addEventListener('keyup',event=>{keys.delete(event.code);machines.key(event.code,false);if(holding&&holding.key===event.code)stopInteract();});
 addEventListener('blur',()=>{keys.clear();stopInteract();});
 canvas.addEventListener('pointerdown',event=>{
  if(event.pointerType!=='mouse'||getMode()!=='shift'||panelOpen())return;
@@ -284,14 +287,15 @@ function interaction(){
   if(me.role==='saboteur'&&!broken)return {key:'KeyE',label:(me.sabotage||0)>0?`${sab.label} / HANDS SHAKING ${Math.ceil(me.sabotage)}S`:`E / SABOTAGE ${sab.label}`,press:(me.sabotage||0)>0?()=>note('NOT YET'):()=>{freeMouse();send({t:'sabStart',id:sab.id});machines.open('rig',sab.id,sabPuzzle(sab.id,S.seed));}};
  }
  const mach=nearMachine(p);
+ if(mach?.legacy){
+  const lab=mach.id==='keypad'&&S.cameraOpened?'CAMERA DOOR OPEN':mach.id==='tubes'&&!S.cameraOpened?'TUBE RACK / ROOM LOCKED':mach.id==='furnace'&&S.coolant?.filterReady?'FILTERS CLEARED':mach.id==='coolant'&&!S.coolant?.filterReady?'COOLING LOOP / PURGE THE FILTERS FIRST':null;
+  if(lab)return {key:'KeyE',label:lab,press:()=>note(lab)};
+  return {key:'KeyE',label:`E / ${mach.label}`,press:()=>{freeMouse();machines.open('machine',mach.id,null);}};
+ }
  if(mach){const st=S.machines?.[mach.id];if(st&&st.wait>0)return {key:'KeyE',label:`${mach.label} / SERVICED, READY IN ${Math.ceil(st.wait)}S`,press:()=>note('ALREADY SERVICED')};
   if(st)return {key:'KeyE',label:`E / WORK THE ${mach.label}`,press:()=>{freeMouse();machines.open('machine',mach.id,puzzle(mach.kind,machineSeed(S.seed,mach.id,st.cycle)));}};}
  if(cameraOpened&&nearStation(p,SCIF_DESK,1.6))return {key:'KeyE',label:'E / SCIF CONSOLE',press:()=>{freeMouse();scif.open();}};
  if(p.y< -1&&nearStation(p,SERVICE_LADDER,1.6))return {key:'KeyE',label:'E / CLIMB LADDER',press:()=>send({t:'climb'})};
- if(nearStation(p,CAMERA_PANEL))return {key:'KeyE',label:'E / ACCESS PANEL',press:()=>{freeMouse();facilityPanels.openAccess(cameraPuzzle,cameraOpened);}};
- if(nearStation(p,INCINERATOR))return {key:'KeyE',label:'E / PURGE FILTERS',press:()=>{freeMouse();facilityPanels.openBurn();}};
- if(cameraOpened&&nearStation(p,TUBE_RACK))return {key:'KeyE',label:'E / SEAT VACUUM TUBES',press:()=>{freeMouse();tubes.open();}};
- if(atCoolantStation(p))return {key:'KeyE',label:'E / BALANCE COOLANT',press:()=>{freeMouse();coolant.open();}};
  const suspect=close(TAPE.range,q=>q.state==='ok');
  if(suspect)return {key:'KeyT',label:'HOLD T / TAPE THEM TO A PIPE (NEEDS TWO)',hold:{kind:'tape',target:suspect.id}};
  return null;
@@ -359,8 +363,8 @@ function onMessage(m){
  if(m.t==='sabResult'){if(m.ok){audio.cue('success');setTimeout(()=>machines.close(),700);}else{machines.fail(m.reason);}return;}
  if(m.t==='toolResult'){toolMessage(m);if(m.pending){toolPending=m.pending;toolSent=false;}else if(m.finished){toolPending=null;toolSent=false;}return;}
  if(m.relay){relayState=m.relay;relay.update(relayState);if(m.t==='relayResult')audio.cue(m.ok?'success':'reject');return;}
- if(m.t==='cameraResult'){audio.cue(m.reason.includes('GRANTED')?'success':'reject');facilityPanels.result(m.reason);return;}
- if(m.t==='burnResult'){audio.cue(m.reason.includes('PROCESSED')||m.reason.includes('CLEARED')?'success':'reject');facilityPanels.burnResult(m.reason);}
+ if(m.t==='cameraResult'){const ok=m.reason.includes('GRANTED');audio.cue(ok?'success':'reject');if(ok){audio.cue('steam');setTimeout(()=>machines.close(),900);}else machines.fail(m.reason);return;}
+ if(m.t==='burnResult'){const ok=m.reason.includes('PROCESSED')||m.reason.includes('CLEARED');audio.cue(ok?'success':'reject');if(ok)audio.cue('steam');else machines.fail(m.reason);}
 }
 let lastPhase='';
 function applyState(m){
@@ -461,6 +465,7 @@ function loop(now){
  const temp=st.temp,pressure=st.pressure,blackout=!!st.blackout;
  bunker.facility.setState(st);bunker.stations.update(now,st);
  if(inShift)machines.update(dt,now,st);
+ arrows.update(camera,me,inShift?st:null,position);
  const specimen=inShift||mode==='over'?st.specimen:null;
  specimenView.update(specimen,{dt,now,self:spec,surge:st.surge});specimenView.mist(st.mist,now);
  updatePeers(inShift||mode==='over'?st.players:[],dt,now);updateSenses(st.players,now);
@@ -506,4 +511,4 @@ function loop(now){
 showHome();
 requestAnimationFrame(loop);
 // Debug handle for automated playtests.
-window.__rc={camera,get machines(){return machines;},puzzle,sabPuzzle,machineSeed,position,get yaw(){return yaw;},set yaw(v){yaw=v;},get pitch(){return pitch;},set pitch(v){pitch=v;},get state(){return S;},get me(){return me;},join,send,setMode};
+window.__rc={camera,scene,bunker,get machines(){return machines;},puzzle,sabPuzzle,machineSeed,position,get yaw(){return yaw;},set yaw(v){yaw=v;},get pitch(){return pitch;},set pitch(v){pitch=v;},get state(){return S;},get me(){return me;},join,send,setMode};

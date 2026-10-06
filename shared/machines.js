@@ -12,6 +12,14 @@ export const MACHINES=[
  {id:'lathe',kind:'lathe',label:'LATHE / VALVE STEM',anchor:{x:-7.4,y:1.15,z:-4.0},face:{x:0,z:1},effect:{pressure:-6},cooldown:70},
  {id:'synchro',kind:'synchro',label:'GENERATOR SYNC',anchor:{x:31.6,y:.79,z:-11.95},face:{x:1,z:0},effect:{temp:-4},cooldown:75},
  {id:'rods',kind:'rods',label:'CONTROL RODS',anchor:{x:-5.6,y:1.25,z:-17.1},face:{x:0,z:-1},effect:{temp:-7},cooldown:90},
+ {id:'radar',kind:'radar',label:'AIR DEFENCE LINK / РЛС',anchor:{x:-4.62,y:.79,z:-2.5},face:{x:1,z:0},effect:{temp:-3,pressure:-3},cooldown:70},
+ // Older station tasks, now worked in 3D. Their server messages are unchanged (legacy).
+ {id:'furnace',kind:'furnace',legacy:true,label:'INCINERATOR FEED',anchor:{x:21,y:1.0,z:-7.82},face:{x:0,z:-1}},
+ {id:'coolant',kind:'coolant',legacy:true,label:'COOLING LOOP',anchor:{x:-6,y:-2.3,z:27.98},face:{x:0,z:-1},floor:-3.2},
+ {id:'keypad',kind:'keypad',legacy:true,label:'CAMERA ROOM DOOR',anchor:{x:-14.86,y:1.35,z:-4.1},face:{x:1,z:0}},
+ {id:'tubes',kind:'tubes',legacy:true,label:'VACUUM TUBE RACK',anchor:{x:-20.9,y:1.1,z:-2.7},face:{x:1,z:0}},
+ {id:'crane',kind:'crane',label:'GANTRY CRANE / КРАН',anchor:{x:33.2,y:1.15,z:15.3},face:{x:0,z:-1},effect:{pressure:-5,temp:-4},cooldown:80},
+ {id:'clock',kind:'clock',label:'BURAN CHRONOMETER / БОРТОВЫЕ ЧАСЫ',anchor:{x:42,y:-4.85,z:23.75},face:{x:0,z:1},floor:-6.2,effect:{temp:-3,pressure:-3},cooldown:60},
  {id:'fuel',kind:'fuel',label:'BURAN FUEL TRANSFER',anchor:{x:55.2,y:-6.8,z:28},face:{x:-1,z:0},floor:-8,effect:{pressure:-6,temp:-2},cooldown:75},
 ];
 export const standOf=m=>({x:m.anchor.x+m.face.x*1.0,y:m.floor??0,z:m.anchor.z+m.face.z*1.0});
@@ -21,6 +29,9 @@ export const machineSeed=(seed,id,cycle)=>`${seed}/${id}/${cycle}`;
 export function puzzle(kind,seed){
  const r=rng(seed);
  if(kind==='harness')return harness(seed);
+ if(kind==='clock')return {base:8*3600+Math.floor(r()*10*3600),drift:(r()<.5?-1:1)*(25+Math.floor(r()*140))};
+ if(kind==='radar')return {nodes:4,drift:.6+r()*.4};
+ if(kind==='crane'){const pads=[[34,30],[50,30],[30,26],[30,36],[47,18]];const t=pads[Math.floor(r()*pads.length)];return {pickup:[56,40],target:t,pad:pads.indexOf(t)+1};}
  if(kind==='valves'){
   // Three wheels each feed several gauges: turning one moves more than one needle.
   const M=[[2,1,0],[0,2,1],[1,0,2]].map(row=>row.map(v=>v+(r()<.3?1:0)));
@@ -53,6 +64,9 @@ function harness(seed){
 }
 export function check(kind,seed,a){
  const p=puzzle(kind,seed);if(!a)return {ok:false,reason:'NOTHING SET'};
+ if(kind==='crane')return Math.hypot((+a.x)-p.target[0],(+a.z)-p.target[1])<=1.3?{ok:true}:{ok:false,reason:'WRONG PAD'};
+ if(kind==='clock'){const base=Math.floor(p.base/60),ref=Math.round(+a.ref);if(!(ref>=base&&ref<=base+20))return {ok:false,reason:'NO TIME SIGNAL'};if(Math.abs((+a.set)-ref)>.35)return {ok:false,reason:'HANDS DO NOT MATCH MSK'};if(Math.abs(+a.err)>.6)return {ok:false,reason:(+a.err)<0?'TOO EARLY / WAIT FOR THE LONG PIP':'LATE / MISSED THE LONG PIP'};return {ok:true};}
+ if(kind==='radar')return Array.isArray(a.phases)&&a.phases.length===p.nodes&&a.phases.every(v=>Math.abs(+v)<=10)?{ok:true}:{ok:false,reason:'NODES OUT OF SYNC'};
  if(kind==='harness'){const pos=a.pos;if(!Array.isArray(pos)||pos.length!==p.N||pos.some(q=>!Array.isArray(q)||q.some(v=>!Number.isFinite(v)||Math.abs(v)>.5)))return {ok:false,reason:'PEGS OFF THE BOARD'};return crossings(p.edges,pos).size?{ok:false,reason:'CABLES STILL CROSS'}:{ok:true};}
  if(kind==='valves'){const g=p.M.map(row=>row.reduce((s,v,j)=>s+v*(+a.w?.[j]||0),0));const off=Math.max(...g.map((v,i)=>Math.abs(v-p.targets[i])));return off<=.75?{ok:true}:{ok:false,reason:'GAUGES OUT OF BAND'};}
  if(kind==='phone'){return String(a.number)===p.entries[p.callee].num?{ok:true}:{ok:false,reason:'WRONG EXTENSION'};}
@@ -85,3 +99,5 @@ export function sabCheck(id,seed,a){
  if(id.startsWith('coax'))return (+a.wire)===p.wire?{ok:true}:{ok:false,reason:'WRONG WIRE / TAMPER ALERT',tamper:true};
  return {ok:false};
 }
+
+export const CRANE={top:11,minX:25,maxX:59,minZ:16,maxZ:44,minL:1.5,maxL:18.4,pickup:[56,40],pads:[[34,30],[50,30],[30,26],[30,36],[47,18]]};

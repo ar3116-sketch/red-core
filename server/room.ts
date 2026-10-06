@@ -9,7 +9,7 @@ import {SAFES,nearSafe,checkSweeper,checkScope,publicSweeper} from '../shared/sa
 import {draft,PARTS} from '../shared/evolution.js';
 import {VENTS,ventTravel,nearVent,CAMERAS,SABOTAGE,SAB_COOLDOWN,SCIF_DESK,REACTOR_SMASH,navPath,NAV} from '../shared/stations.js';
 import {LIFT_DOOR} from '../shared/wings.js';
-import {MACHINES,nearMachine,machineSeed,check as machineCheck,sabCheck,sabPuzzle,SAB_ARM_SECONDS} from '../shared/machines.js';
+import {MACHINES,nearMachine,machineSeed,check as machineCheck,sabCheck,sabPuzzle,SAB_ARM_SECONDS,CRANE} from '../shared/machines.js';
 import {CALLSIGNS,MAX_PLAYERS,BRIEFING_SECONDS,assignRoles,roleCounts,SPECIMEN,MUTATION_ORDER,HANG,TAPE,RADIO_DELAY,winners} from '../shared/match.js';
 import type * as Party from 'partykit/server';
 import {ACTION_RANGE,CONSOLE_POSITION,DRIFT_PER_SEC,MOVE_SPEED,SHIFT_SECONDS,START_TEMP,TICK_HZ} from '../shared/constants.js';
@@ -52,6 +52,7 @@ export default class Room implements Party.Server {
  tutorial=false;
  edgeReset=new Map<string,number>();
  machineState:Record<string,{cycle:number;readyAt:number}>={};
+ crane:any={x:56,z:40,L:12,ax:0,az:0,latched:false,load:[56,-8,40]};
  armed=new Map<string,{at:number;by:string}>();
  sabWork=new Map<string,{id:string;start:number}>();
 
@@ -62,7 +63,7 @@ export default class Room implements Party.Server {
   this.tLeft=SHIFT_SECONDS;this.temp=START_TEMP;this.pressure=20;this.outcome=null;
   this.directorClock=0;this.clusterSeconds=0;this.blackoutSeconds=0;this.lastEvent='';
   this.coolant=createCoolantState(this.seed);this.coolantOperator=null;this.cameraOpened=false;this.tubes=createTubes(this.seed);
-  this.tools=createToolState();this.toolPending.clear();this.edgeReset?.clear();this.machineState=Object.fromEntries(MACHINES.map(m=>[m.id,{cycle:0,readyAt:0}]));this.armed?.clear();this.sabWork?.clear();
+  this.tools=createToolState();this.toolPending.clear();this.edgeReset?.clear();this.machineState=Object.fromEntries(MACHINES.map(m=>[m.id,{cycle:0,readyAt:0}]));this.crane={x:56,z:40,L:12,ax:0,az:0,latched:false,load:[56,-8,40]};this.armed?.clear();this.sabWork?.clear();
   for(const id of this.relayJobs.keys())this.relayJobs.set(id,createRelay(this.seed+':'+id));
   this.safePuzzle=puzzleForRoom(this.seed);this.offers=draft(this.seed);
   this.valveUntil=0;this.sealedUntil=0;this.cutCameras.clear();this.lastConsoleCycle=null;this.log=[];this.radioQueue=[];this.surgeUntil=0;this.mistAt=null;
@@ -98,6 +99,7 @@ export default class Room implements Party.Server {
    console:this.lastConsoleCycle&&now-this.lastConsoleCycle.at<20000?{delta:this.lastConsoleCycle.delta}:null,
    mist:this.mistAt&&now<this.mistAt.until?this.mistAt:null,
    machines:Object.fromEntries(Object.entries(this.machineState).map(([id,m])=>[id,{cycle:m.cycle,wait:Math.max(0,(m.readyAt-now)/1000)}])),
+   crane:this.crane,
    armed:[...this.armed].map(([id,a])=>({id,left:Math.max(0,(a.at-now)/1000)})),
    lobby:[...this.players.values()].filter(p=>!p.bot).map(p=>({line:p.line,ready:p.ready,host:p.id===this.hostId})),
    players:[...this.players.values()].filter(p=>p.role!=='specimen'&&p.state!=='spectator').map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,stun:p.stun,state:p.state,hang:p.hang?{hands:p.hang.hands,dirX:p.hang.dirX,dirZ:p.hang.dirZ}:null,hold:p.hold?.kind??null})),
@@ -408,6 +410,11 @@ export default class Room implements Party.Server {
    return;
   }
   if(m.t==='tut'&&this.tutorial){this.tutorialEvent(p,m,now);return;}
+  // The crane operator streams the crane so everyone in the hangar sees it move and the load swing.
+  if(m.t==='crane'&&humanRole(p)&&p.state==='ok'&&nearMachine(p,1.9)?.id==='crane'){
+   const n=(v:any,a:number,b:number)=>Number.isFinite(+v)?Math.max(a,Math.min(b,+v)):a;const ld=Array.isArray(m.load)?m.load:this.crane.load;
+   this.crane={x:n(m.x,CRANE.minX,CRANE.maxX),z:n(m.z,CRANE.minZ,CRANE.maxZ),L:n(m.L,CRANE.minL,CRANE.maxL),ax:n(m.ax,-1,1),az:n(m.az,-1,1),latched:!!m.latched,load:[n(ld[0],25,59),n(ld[1],-8,2),n(ld[2],15,45)]};return;
+  }
   if(m.t==='machine'&&humanRole(p)&&p.state==='ok'){
    const def=MACHINES.find(d=>d.id===m.id),st=this.machineState[m.id];if(!def||!st)return;
    if(nearMachine(p,1.8)?.id!==def.id||now<st.readyAt){this.send(p.id,{t:'machineResult',id:def.id,ok:false,reason:'NOT READY'});return;}

@@ -21,7 +21,7 @@ export function renderObjectives(s,me,heldWrench){
   if(edges)items.push({text:`${edges} SHAFT-EDGE LEAKS / LEAN OVER THE BROKEN RAILS (WRENCH)`,urgent:edges>3});
   const leaks=Object.entries(s.tools?.jobs||{}).filter(([id])=>id.endsWith('leak'));const sealed=leaks.filter(([,v])=>v>=3).length;
   items.push({text:`SEAL LEAKS ${sealed}/${leaks.length}${heldWrench?'':' / NEEDS A WRENCH'}`,done:sealed===leaks.length});
-  if(!s.cameraOpened)items.push({text:'OPEN THE CAMERA ROOM / ACCESS PANEL'});else if(!s.tubes?.powered)items.push({text:'POWER THE CAMERAS / SEAT 3 TUBES'});else items.push({text:'CAMERAS ONLINE / SCIF RADIO WORKS',done:true});
+  if(!s.cameraOpened)items.push({text:'OPEN THE CAMERA ROOM / KEYPAD WEST OF THE WORKSHOP (CODE: BARRACKS RADIO)'});else if(!s.tubes?.powered)items.push({text:'POWER THE CAMERAS / SEAT 3 TUBES'});else items.push({text:'CAMERAS ONLINE / SCIF RADIO IN THE CAMERA ROOM',done:true});
   if(s.valve)items.push({text:'COOLANT VALVE REVERSED / PUMP ROOM',urgent:true});
   if(s.blackout)items.push({text:'POWER OUT / RESET THE BREAKER IN THE SUBSTATION',urgent:true});
   for(const id of s.cut||[])items.push({text:`CAMERA ${CAMERAS.find(c=>c.id===id)?.label.slice(0,2)} CUT / SPLICE ITS CABLE BOX`,urgent:true});

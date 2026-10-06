@@ -54,7 +54,9 @@ export function buildWings(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,h
  roomSign('WEST TUNNEL',-15.25,2.4,-10.5,Math.PI/2);roomSign('PUMP ROOM',-24.75,2.4,-10.5,-Math.PI/2);
  roomSign('STORAGE',-30.8,2.6,-.5,-Math.PI/2);roomSign('ARCHIVE',-30.8,2.6,-20.5,-Math.PI/2);
  roomSign('WEST HALL',-31.2,2.6,-.5,Math.PI/2);roomSign('WEST HALL',-31.2,2.6,-20.5,Math.PI/2);
- roomSign('DANGER / OPEN SHAFT',25.2,1.9,-10,Math.PI/2,'#d6a14e');roomSign('DANGER / OPEN SHAFT',-25.2,1.9,-16,-Math.PI/2,'#d6a14e');
+ roomSign('DANGER / OPEN SHAFT',25.2,1.9,-10,Math.PI/2,'#d6a14e');
+ // Wayfinding to the orbiter: extraction, tunnel mouth, east hall.
+ roomSign('АНГАР 2 → / BURAN HANGAR: EAST TUNNEL',14.87,1.75,.6,-Math.PI/2);roomSign('АНГАР 2 ↓ / BURAN HANGAR: SOUTH END',25.13,1.9,1.4,Math.PI/2);roomSign('АНГАР 2 ↓ / BURAN HANGAR',25.13,1.9,-6.5,Math.PI/2);roomSign('DANGER / OPEN SHAFT',-25.2,1.9,-16,-Math.PI/2,'#d6a14e');
  // Shafts: a lip of hazard paint, sheer walls down to a faint sump glow far below.
  for(const s of SHAFTS){
   const w=s.maxX-s.minX,d=s.maxZ-s.minZ,cx=(s.minX+s.maxX)/2,cz=(s.minZ+s.maxZ)/2,depth=-SHAFT_FLOOR;

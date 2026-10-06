@@ -134,6 +134,11 @@ export class BunkerAudio {
       case 'spark':{for(let i=0;i<7;i++)this.burst(t+i*rand(.008,.03),{type:'highpass',freq:rand(3000,6000),dur:.006,vol:rand(.05,.14),attack:.0005});const o=this.ctx.createOscillator();o.type='square';o.frequency.value=100;const g=this.ctx.createGain();this.env(g,t,.035,.005,.18);o.connect(g).connect(this.world);o.start(t);o.stop(t+.2);return;}
       case 'snip':this.burst(t,{type:'highpass',freq:4000,dur:.006,vol:.15,attack:.0005});this.ring(t+.004,{freqs:[3100,4700],q:30,vol:.05,dur:.12});this.burst(t+.05,{type:'highpass',freq:5000,dur:.004,vol:.08,attack:.0005});return;
       case 'cable':this.burst(t,{type:'lowpass',freq:700,dur:.12,vol:.08});this.burst(t+.02,{freq:2400,q:3,dur:.04,vol:.03});return;
+      // Radio time signal: five short pips and a long sixth on the minute.
+      case 'pip':this.tone(t,{freq:1000,dur:.1,vol:.07,attack:.003,bus:this.ui});return;
+      case 'pipLong':this.tone(t,{freq:1000,dur:.5,vol:.08,attack:.003,bus:this.ui});return;
+      case 'latch':this.burst(t,{type:'lowpass',freq:500,dur:.08,vol:.14});this.ring(t+.01,{freqs:[310,770,1240],q:25,vol:.05,dur:.35});return;
+      case 'clank':this.burst(t,{type:'lowpass',freq:300,dur:.18,vol:.2});this.ring(t,{freqs:[180,437,905,1530],q:18,vol:.08,dur:1.1});return;
       case 'peg':this.tone(t,{freq:140,to:90,dur:.06,vol:.12});this.burst(t,{freq:3000,q:4,dur:.015,vol:.06});return;
       case 'buzz':{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=100;const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=900;f.Q.value=3;const g=this.ctx.createGain();this.env(g,t,.02,.005,.12);o.connect(f).connect(g).connect(this.world);o.start(t);o.stop(t+.15);return;}
       case 'warn':for(let i=0;i<4;i++)this.tone(t+i*.2,{freq:i%2?720:960,type:'square',dur:.16,vol:.035,bus:this.ui});return;

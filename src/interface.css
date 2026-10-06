@@ -144,3 +144,13 @@ body.leaning #c{cursor:grab}
 #machine-hint{background:#d9d0ab;color:#2a261b;border:0;box-shadow:3px 4px 0 #0008;font:12px/1.5 'Courier New',monospace}#machine-hint b{color:#7a2a1e;font:bold 12px 'Courier New',monospace}#machine-hint small{color:#8e2a1e}#machine-hint span{color:#5a5440}
 #warning{font-family:'Courier New',monospace;font-weight:bold;letter-spacing:1px}
 @media(max-width:530px){#objectives{max-width:62vw;font-size:9px}}
+/* Crisis pointers: cyan is danger. */
+#crisis{position:fixed;inset:0;pointer-events:none;z-index:12}
+body.leaning #crisis{display:none}
+.crisis-mark{position:absolute;left:0;top:0;width:0;height:0}
+.crisis-mark i{position:absolute;left:-13px;top:-13px;width:26px;height:26px;background:#46d6d0;clip-path:polygon(100% 50%,0 0,28% 50%,0 100%);filter:drop-shadow(0 0 4px #46d6d0aa);animation:crisisblink .8s steps(2) infinite}
+.crisis-mark:not(.edge) i{top:-34px}
+.crisis-mark span{position:absolute;left:50%;top:18px;transform:translateX(-50%);white-space:nowrap;font:bold 11px 'Courier New',monospace;letter-spacing:1px;color:#bff4ef;background:#071a1ccc;border:1px solid #46d6d0;padding:2px 6px}
+.crisis-mark:not(.edge) span{top:-62px}
+.crisis-mark.hot span{color:#071a1c;background:#46d6d0}
+@keyframes crisisblink{50%{opacity:.35}}

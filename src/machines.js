@@ -1,7 +1,12 @@
 import * as THREE from 'three';
-import {MACHINES,puzzle,sabPuzzle,machineSeed,crossings} from '../shared/machines.js';
+import {MACHINES,puzzle,sabPuzzle,machineSeed,crossings,CRANE} from '../shared/machines.js';
+import {HANGAR,HANGAR_FIXTURES} from '../shared/hangar.js';
+const HANGAR_TOP=HANGAR.top,CRANE_OBSTACLES=HANGAR_FIXTURES.filter(f=>/scaffold|crates|tug/.test(f.id));
 import {SABOTAGE,CAMERAS} from '../shared/stations.js';
 import {isWalkable,SOLIDS} from '../shared/world.js';
+import {incineratorHeat} from '../shared/facility.js';
+import {readings,coolantTarget} from '../shared/coolant.js';
+import {tubeContact} from '../shared/tubes.js';
 
 // Tactile machines worked in 3D. Lean in (camera eases to the machine), then drag real parts:
 // wheels and knobs turn with a circular drag, levers and fuses with a vertical drag, wires and slots click.
@@ -25,11 +30,86 @@ function gaugeFace(s,value,max,lo,hi,title){s.draw((g,W,H)=>{g.fillStyle='#d9d2b
 // Wall points: mount a rig on the nearest wall to a stand point.
 function wallward(x,z){let best=null;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]])for(let d=.4;d<=1.6;d+=.1){if(!isWalkable(x+dx*d,z+dz*d,SOLIDS,.05,0)){if(!best||d<best.d)best={dx,dz,d};break;}}return best||{dx:0,dz:-1,d:.6};}
 
-export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound,onExit}){
- const machines=new Map();
+export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound,onExit,onAction,crane}){
+ const machines=new Map();let lastState=null;
  const place=(group,anchor,face)=>{group.position.set(anchor.x,anchor.y,anchor.z);group.rotation.y=Math.atan2(face.x,face.z);scene.add(group);group.userData.dynamic=true;};
  // ---------- crew machines ----------
  const builders={
+  radar(def){
+   // PPI radar: four surface air-defence nodes drift out of phase with the sweep. Pull them back fast.
+   const g=new THREE.Group();box(.62,.5,.42,M.olive,0,.25,-.05,g);const scr=screen(.36,.36,192,192);scr.mesh.position.set(-.08,.29,.165);g.add(scr.mesh);box(.42,.42,.02,M.dark,-.08,.29,.15,g);
+   g.add(label('РЛС / ВОЗДУШНАЯ ОБОРОНА',.5,.06));g.children.at(-1).position.set(0,.52,.165);
+   const knobs=[];for(let i=0;i<4;i++){const k=knob(.03,M.bakelite);k.position.set(.2,.44-i*.09,.17);g.add(k);knobs.push(k);g.add(label(String(i+1),.04,.04));g.children.at(-1).position.set(.255,.44-i*.09,.165);}
+   const st={ph:[0,0,0,0],drift:[0,0,0,0],sweep:0,hold:0,done:false,t:0};let p;const bearing=[.6,2.1,3.7,5.2];
+   return {g,load(q){p=q;st.ph=st.ph.map(()=>(Math.random()<.5?-1:1)*(40+Math.random()*100));st.drift=st.drift.map(()=>(Math.random()-.5)*20);st.hold=0;st.done=false;st.t=0;},
+    parts:knobs.map((k,i)=>({mesh:k,type:'wheel',drag:d=>{st.ph[i]=Math.max(-180,Math.min(180,st.ph[i]-d*120));onSound('tick');}})),
+    update(dt){if(!p)return;st.t+=dt;st.sweep=(st.sweep+dt*3)%(Math.PI*2);
+     // Drift grows the longer you take: leave it and the nodes walk away.
+     st.drift=st.drift.map(v=>v+(Math.random()-.5)*dt*30*p.drift*(1+st.t/20));st.ph=st.ph.map((v,i)=>Math.max(-180,Math.min(180,v+st.drift[i]*dt)));
+     knobs.forEach((k,i)=>k.rotation.z=st.ph[i]/60);
+     const ok=st.ph.map(v=>Math.abs(v)<8);
+     scr.draw((c,W,H)=>{c.fillStyle='rgba(4,16,8,.35)';c.fillRect(0,0,W,H);const cx=W/2,cy=H/2,R=W*.46;c.strokeStyle='#1c5a2c';c.lineWidth=1;for(const r of [.33,.66,1]){c.beginPath();c.arc(cx,cy,R*r,0,TAU);c.stroke();}
+      c.strokeStyle='#7fe08f';c.lineWidth=2;c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.cos(st.sweep)*R,cy+Math.sin(st.sweep)*R);c.stroke();
+      bearing.forEach((b,i)=>{const a=b+st.ph[i]*Math.PI/180,near=Math.abs(((st.sweep-a)%TAU+TAU)%TAU);const glow=Math.max(.15,1-near/1.5);c.fillStyle=ok[i]?`rgba(150,255,160,${glow})`:`rgba(220,180,90,${glow})`;const x=cx+Math.cos(a)*R*.7,y=cy+Math.sin(a)*R*.7;c.fillRect(x-4,y-4,8,8);c.fillStyle='#7fe08f';c.font='9px monospace';c.fillText(String(i+1),cx+Math.cos(b)*R*.86-3,cy+Math.sin(b)*R*.86+3);
+       c.strokeStyle='#2c6a3c';c.beginPath();c.moveTo(cx+Math.cos(b)*R*.6,cy+Math.sin(b)*R*.6);c.lineTo(cx+Math.cos(b)*R*.8,cy+Math.sin(b)*R*.8);c.stroke();});});
+     st.hold=ok.every(Boolean)?st.hold+dt:0;if(st.hold>1.2&&!st.done){st.done=true;onAnswer({phases:st.ph.map(v=>+v.toFixed(1))});}},
+    status(){return `IN SYNC: ${st.ph.filter(v=>Math.abs(v)<8).length} / 4`;},fail(){st.done=false;st.hold=0;},
+    hint:'EACH KNOB SHIFTS ONE NODE. PUT EVERY BLIP BACK ON ITS TICK MARK SO IT LIGHTS GREEN. THEY KEEP DRIFTING, FASTER THE LONGER YOU TAKE.'};
+  },
+  furnace(def){
+   // Drag a filter cartridge off the rack into the chute while the needle sits in the amber band.
+   const g=new THREE.Group();box(1.2,.9,.06,M.dark,0,.25,-.03,g);const glow=new THREE.MeshBasicMaterial({color:0xb87932});box(.5,.3,.02,glow,0,.45,.01,g);for(let i=0;i<6;i++)box(.03,.3,.03,M.bakelite,-.22+i*.088,.45,.025,g);
+   const chute=box(.34,.18,.12,M.bakelite,0,.02,.06,g);const dial=screen(.26,.16,128,80);dial.mesh.position.set(.42,.48,.01);g.add(dial.mesh);
+   const rack=box(.22,.5,.1,M.steel,-.48,.15,.06,g);void rack;const carts=[];
+   for(let i=0;i<3;i++){const c=cyl(.05,.05,.16,mat(0x6a7a5a),10);c.position.set(-.48,.32-i*.17,.13);g.add(c);carts.push(c);}
+   const st={drag:-1,fed:0};let state,plane=new THREE.Plane(),inv=new THREE.Matrix4();const home=carts.map(c=>c.position.clone());
+   return {g,load(){carts.forEach((c,i)=>c.position.copy(home[i]));st.drag=-1;},
+    parts:carts.map((c,i)=>({mesh:c,type:'plane',down:()=>{g.updateMatrixWorld();plane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0,0,1).transformDirection(g.matrixWorld),new THREE.Vector3(0,0,.13).applyMatrix4(g.matrixWorld));st.drag=i;onSound('cable');},
+     move:ray=>{const h=new THREE.Vector3();if(!ray.intersectPlane(plane,h))return;inv.copy(g.matrixWorld).invert();h.applyMatrix4(inv);c.position.set(Math.max(-.55,Math.min(.55,h.x)),Math.max(-.15,Math.min(.6,h.y)),.13);},
+     up:()=>{const pos=c.position;if(Math.abs(pos.x)<.2&&pos.y<.15){onAction?.({t:'feedFilter'});onSound('peg');c.visible=false;setTimeout(()=>{c.visible=true;c.position.copy(home[i]);},900);}else{c.position.copy(home[i]);}st.drag=-1;}})),
+    update(dt,now,s){state=s;const heat=incineratorHeat(Date.now());glow.color.setHex(0xb87932).multiplyScalar(.6+heat/120+Math.sin(now*.02)*.08);const cool=s?.coolant;
+     carts.forEach((c,i)=>{if(st.drag!==i)c.visible=!cool||i>=(cool.filterProgress||0)&&!cool.filterReady;});
+     dial.draw((c,W,H)=>{c.fillStyle='#d9d2b3';c.fillRect(0,0,W,H);c.fillStyle='#c9a032';c.fillRect(W*.4,8,W*.3,H-30);c.fillStyle='#2a261c';c.font='bold 9px monospace';c.fillText(cool?.filterReady?'CLEARED':`ФИЛЬТРЫ ${cool?.filterProgress||0}/3`,4,H-6);c.fillStyle='#9a2e22';c.fillRect(heat/100*W-1,4,3,H-26);});},
+    status(){return state?.coolant?.filterReady?'FILTER BANK CLEARED / GO BALANCE THE COOLANT LOOP':'DROP A CARTRIDGE IN THE CHUTE WHILE THE NEEDLE IS IN THE AMBER BAND';},
+    hint:'DRAG A FILTER CARTRIDGE FROM THE RACK INTO THE CHUTE. ONLY FEED WHEN THE RED NEEDLE IS IN THE AMBER BAND, OR IT BLOWS BACK AND UNDOES ONE.'};
+  },
+  coolant(def){
+   const g=new THREE.Group();box(1.3,.8,.08,M.olive,0,.1,-.04,g);const wheels={},gauges={};const st={v:{intake:25,bypass:75},dragging:null,sent:0};let state;
+   [['intake',-.36],['bypass',.36]].forEach(([k,x])=>{const w=handwheel(.17,k==='intake'?M.red:mat(0x3a5a7a));w.position.set(x,-.12,.12);g.add(w);wheels[k]=w;g.add(label(k==='intake'?'ВПУСК / INTAKE':'ОБХОД / BYPASS',.36,.06));g.children.at(-1).position.set(x,.1,.01);});
+   [['flow',-.24],['pressure',.24]].forEach(([k,x])=>{const s=screen(.3,.2,96,64);s.mesh.position.set(x,.36,.01);g.add(s.mesh);gauges[k]=s;});
+   const lamp=new THREE.MeshBasicMaterial({color:0x332a18});box(.06,.06,.03,lamp,0,.36,.02,g);
+   return {g,load(){st.dragging=null;},
+    parts:['intake','bypass'].map(k=>({mesh:wheels[k],type:'wheel',down:()=>{st.dragging=k;},up:()=>{st.dragging=null;},drag:d=>{st.v[k]=Math.max(0,Math.min(100,st.v[k]+d*25));const q=Math.round(st.v[k]/5)*5;const cur=state?.coolant?.[k];if(q!==cur&&performance.now()-st.sent>120){st.sent=performance.now();onAction?.({t:'coolantSet',intake:k==='intake'?q:state?.coolant?.intake??25,bypass:k==='bypass'?q:state?.coolant?.bypass??75});}onSound('turn');}})),
+    update(dt,now,s){state=s;const c=s?.coolant;if(!c)return;for(const k of ['intake','bypass']){if(st.dragging!==k)st.v[k]=c[k];wheels[k].rotation.z=-st.v[k]/25*TAU;}
+     const val=readings(c.intake,c.bypass),tgt=coolantTarget(c);gaugeFace(gauges.flow,val.flow,100,tgt.flow-2,tgt.flow+2,'FLOW');gaugeFace(gauges.pressure,val.pressure,100,tgt.pressure-2,tgt.pressure+2,'PRESSURE');
+     lamp.color.setHex(c.cooldown>0?0x8fbf6a:c.progress>0?(Math.floor(now/200)%2?0xd99b44:0x332a18):0x332a18);},
+    status(){const c=state?.coolant;return !c?'':c.cooldown>0?`FLUSH DONE / READY IN ${Math.ceil(c.cooldown)}S`:!c.filterReady?'BLOCKED / PURGE 3 FILTERS AT THE INCINERATOR FIRST':c.progress>0?`HOLD IT / ${c.progress.toFixed(1)} OF 3S`:'PUT BOTH NEEDLES IN THEIR GREEN BANDS';},
+    hint:'INTAKE PUSHES FLOW AND PRESSURE UP; BYPASS DROPS FLOW BUT ADDS BACK-PRESSURE. GET BOTH NEEDLES INTO THE GREEN AND HOLD THEM THERE FOR THREE SECONDS.'};
+  },
+  keypad(def){
+   const g=new THREE.Group();box(.34,.46,.08,M.steel,0,0,-.04,g);const disp=screen(.26,.07,128,32);disp.mesh.position.set(0,.17,.005);g.add(disp.mesh);
+   const note=screen(.26,.34,128,168);note.mesh.position.set(-.36,0,.0);note.mesh.rotation.z=.04;g.add(note.mesh);
+   const keys=[],labels=['1','2','3','4','5','6','7','8','9','C','0','↵'];const st={pin:'',msg:''};let state,drawn='';
+   labels.forEach((l,i)=>{const k=box(.07,.055,.03,i===9?M.red:i===11?mat(0x3a5a3a):M.bakelite,-.09+(i%3)*.09,.07-Math.floor(i/3)*.07,.015,g);const t=label(l,.05,.04,'#151513','#e8e2c8');t.position.set(-.09+(i%3)*.09,.07-Math.floor(i/3)*.07,.032);g.add(t);keys.push({k,l,t});});
+   return {g,load(){st.pin='';st.msg='';},
+    parts:keys.map(({k,l,t})=>({mesh:k,type:'click',click:()=>{k.position.z=.005;t.position.z=.022;setTimeout(()=>{k.position.z=.015;t.position.z=.032;},120);onSound('tick');
+     if(l==='C')st.pin='';else if(l==='↵'){if(st.pin.length===4)onAction?.({t:'cameraPin',pin:st.pin});st.pin='';}else if(st.pin.length<4)st.pin+=l;}})),
+    update(dt,now,s){state=s;disp.draw((c,W,H)=>{c.fillStyle='#120806';c.fillRect(0,0,W,H);c.fillStyle=s?.cameraOpened?'#8fbf6a':'#e0402a';c.font='bold 20px monospace';c.fillText(s?.cameraOpened?'OPEN':st.pin.padEnd(4,'-'),18,24);});
+     const pz=s?.cameraPuzzle;const sig=JSON.stringify(pz);if(pz&&sig!==drawn){drawn=sig;note.draw((c,W,H)=>{c.fillStyle='#e8dfbf';c.fillRect(0,0,W,H);c.fillStyle='#2a261c';c.font='bold 9px monospace';c.fillText('КОД ДОСТУПА / ACCESS',4,12);c.font='9px monospace';Object.entries(pz.readings).forEach(([k,v],i)=>c.fillText(`${k}: ${v}`,6,30+i*12));pz.clues.forEach((t,i)=>{const words=t.split(' ');let line='',y=88+i*26;for(const w of words){if((line+w).length>22){c.fillText(line,4,y);y+=10;line='';}line+=w+' ';}c.fillText(line,4,y);});c.fillStyle='#7a2a1e';c.fillText('LAST DIGIT OF EACH, IN ORDER',4,H-6);});}},
+    status(){return state?.cameraOpened?'DOOR RELEASED':'';},
+    hint:'READ THE NOTE: PUT THE FOUR READINGS IN THE ORDER THE CLUES DESCRIBE, TAKE THE LAST DIGIT OF EACH, KEY IT IN, PRESS ↵.'};
+  },
+  tubes(def){
+   const g=new THREE.Group();box(.18,.5,.9,M.dark,-.09,0,0,g);const tubes=[];
+   for(let i=0;i<3;i++){const z=(i-1)*.28;const glass=cyl(.055,.055,.22,new THREE.MeshLambertMaterial({color:0x9aa89a,transparent:true,opacity:.35}),10);glass.rotation.z=Math.PI/2;glass.position.set(.12,.05,z);g.add(glass);
+    const fil=new THREE.MeshBasicMaterial({color:0x27372b});const f=box(.14,.02,.02,fil,.12,.05,z,g);void f;const collar=handwheel(.07,M.brass);collar.position.set(.02,.05,z);collar.rotation.y=Math.PI/2;g.add(collar);tubes.push({collar,fil});}
+   const st={v:[0,0,0],sent:0};let state;
+   return {g,load(){},
+    parts:tubes.map((t,i)=>({mesh:t.collar,type:'wheel',drag:d=>{st.v[i]=Math.max(0,Math.min(100,st.v[i]+d*20));if(performance.now()-st.sent>90){st.sent=performance.now();onAction?.({t:'tubeTurn',index:i,value:Math.round(st.v[i])});}onSound('turn');}})),
+    update(dt,now,s){state=s;const tb=s?.tubes;if(!tb)return;tubes.forEach((t,i)=>{if(Math.abs(st.v[i]-tb.values[i])>6&&performance.now()-st.sent>400)st.v[i]=tb.values[i];t.collar.rotation.x=st.v[i]/20*TAU;const c=tubeContact(tb,i);t.fil.color.setHex(c==='lit'?0xe7a247:c==='weak'?(Math.floor(now/90)%2?0x9a6a30:0x3a2a18):0x27372b);});},
+    status(){return state?.tubes?.powered?'ALL TUBES STABLE / CAMERAS ONLINE':state?.cameraOpened?'SCREW EACH COLLAR UNTIL ITS FILAMENT HOLDS A STEADY GLOW':'';},
+    hint:'TURN EACH BRASS COLLAR. TOO LOOSE OR TOO TIGHT AND THE FILAMENT FLICKERS OR DIES. READ THE GLOW, NOT THE NUMBERS.'};
+  },
   harness(def){
    // A junction cabinet beside the reactor console: pegs on a board, cables sagging between them.
    const g=new THREE.Group();box(1.05,1.9,.3,M.olive,0,-.1,-.2,g);
@@ -65,17 +145,21 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
     hint:'DRAG THE PEGS TO UNTANGLE THE HARNESS. NO CABLE MAY CROSS ANOTHER: CROSSED CABLES GLOW RED. WHEN NONE CROSS, THE CIRCUIT CLOSES.'};
   },
   valves(def){
-   const g=new THREE.Group();box(2.1,1.3,.08,M.olive,0,0,-.04,g);
-   g.add(label('ГЛАВНЫЙ КОЛЛЕКТОР / MAIN MANIFOLD',1.6,.1));g.children.at(-1).position.set(0,.56,.01);
+   const g=new THREE.Group();box(2.1,1.6,.08,M.olive,0,.15,-.04,g);
+   g.add(label('ГЛАВНЫЙ КОЛЛЕКТОР / MAIN MANIFOLD',1.6,.1));g.children.at(-1).position.set(0,.7,.01);
    const wheels=[],gauges=[];
-   for(let i=0;i<3;i++){const x=(i-1)*.62;const pipe=cyl(.06,.06,1.2,M.steel,8);pipe.position.set(x,-.05,.08);g.add(pipe);
-    const w=handwheel(.2);w.position.set(x,-.28,.2);g.add(w);wheels.push(w);
-    const s=screen(.32,.24,96,72);s.mesh.position.set(x,.25,.02);g.add(s.mesh);gauges.push(s);box(.36,.28,.04,M.dark,x,.25,-.005,g);}
+   // Pipes stop below the gauges so nothing hides the needles; a lamp over each gauge lights in band.
+   const lamps=[];
+   for(let i=0;i<3;i++){const x=(i-1)*.62;const pipe=cyl(.06,.06,.6,M.steel,8);pipe.position.set(x,-.35,.08);g.add(pipe);
+    const w=handwheel(.2);w.position.set(x,-.32,.2);g.add(w);wheels.push(w);
+    const s=screen(.42,.3,128,92);s.mesh.position.set(x,.36,.07);g.add(s.mesh);gauges.push(s);box(.46,.34,.1,M.dark,x,.36,.015,g);
+    const lamp=new THREE.Mesh(new THREE.BoxGeometry(.07,.05,.04),new THREE.MeshBasicMaterial({color:0x3a1a12}));lamp.position.set(x,.575,.07);g.add(lamp);lamps.push(lamp);}
    const st={w:[0,0,0],hold:0,done:false};let p;
    return {g,load(q){p=q;st.w=[0,0,0];st.hold=0;st.done=false;},
     parts:wheels.map((w,i)=>({mesh:w,type:'wheel',drag:d=>{st.w[i]=Math.max(0,Math.min(p.max,st.w[i]+d));onSound('turn');}})),
     update(dt){if(!p)return;const gv=p.M.map(row=>row.reduce((s,v,j)=>s+v*st.w[j],0));const max=p.M.map(row=>row.reduce((a,b)=>a+b)*p.max);
      wheels.forEach((w,i)=>w.rotation.z=-st.w[i]*TAU);gauges.forEach((s,i)=>gaugeFace(s,gv[i],max[i],p.targets[i]-.75,p.targets[i]+.75,'G'+(i+1)));
+     lamps.forEach((l,i)=>l.material.color.setHex(Math.abs(gv[i]-p.targets[i])<=.75?0x7ee06a:0x3a1a12));
      const ok=gv.every((v,i)=>Math.abs(v-p.targets[i])<=.75);st.hold=ok?st.hold+dt:0;if(st.hold>1.2&&!st.done){st.done=true;onAnswer({w:st.w.slice()});}},
     hint:'DRAG IN CIRCLES TO TURN A WHEEL. EACH WHEEL MOVES MORE THAN ONE GAUGE. GET ALL THREE NEEDLES INTO THE GREEN.'};
   },
@@ -182,6 +266,108 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
     status(){return `OPEN: ${st.opened.map(i=>letters[i]).join(' ')||'—'}`;},
     hint:'OPEN THE VALVES IN THE ORDER ON THE PLACARD. TWO FULL TURNS EACH. WRONG ORDER SPIKES THE LINE AND SHUTS THEM ALL.'};
   },
+  crane(def){
+   // Pendant control on a cable off the crane rail. Drive the real overhead crane (WASD, R/F hoist,
+   // SPACE latch), fly the APU crate to the pad the work order names, and kill the swing before set-down.
+   const g=new THREE.Group();box(.015,1.1,.015,M.dark,0,.85,0,g);
+   const body=box(.17,.36,.11,mat(0xc9a032),0,.12,0,g);void body;
+   const btn=(c,x,y,txt)=>{const b=cyl(.02,.02,.025,c,8);b.rotation.x=Math.PI/2;b.position.set(x,y,.06);g.add(b);const l=label(txt,.06,.025,'#c9a032','#161613');l.position.set(x,y-.032,.0561);g.add(l);return b;};
+   const keys={x:0,z:0,h:0},held=new Set();
+   const bx=[btn(M.bakelite,-.04,.24,'W'),btn(M.bakelite,-.04,.16,'S'),btn(M.bakelite,-.075,.2,'A'),btn(M.bakelite,-.005,.2,'D'),btn(M.steel,.05,.24,'R'),btn(M.steel,.05,.16,'F')];
+   const latchBtn=btn(M.red,0,.05,'SPACE');
+   const top=HANGAR_TOP-3.3,FLOOR=-8,PADS=CRANE.pads;
+   const st={x:56,z:40,L:12,vx:0,vz:0,ax:0,az:0,wx:0,wz:0,latched:false,load:[56,FLOOR,40],done:false,on:false,warn:'',warnUntil:0,sent:0,lastTop:FLOOR};
+   let p;
+   const hookAt=()=>{const hx=st.x+Math.sin(st.ax)*st.L,hz=st.z+Math.sin(st.az)*st.L,hy=top-st.L*Math.cos(st.ax)*Math.cos(st.az);return [hx,hy,hz];};
+   const lowest=hy=>st.latched?hy-1.45:hy-.4;
+   // Highest thing under a point: catwalk, orbiter, wings, scaffolds, crates, the floor.
+   const under=(x,z)=>{let t=FLOOR;const inb=(a,b,c,d)=>x>a&&x<b&&z>c&&z<d;
+    if(inb(40.1,43.9,15,45))t=Math.max(t,1.25);
+    if(inb(39.7,44.3,20.6,41.6))t=Math.max(t,z>34?-.3:-3.3);
+    if(inb(34.4,49.6,28,40))t=Math.max(t,-5.8);
+    for(const f of CRANE_OBSTACLES)if(inb(f.x-f.w/2-.5,f.x+f.w/2+.5,f.z-f.d/2-.5,f.z+f.d/2+.5))t=Math.max(t,f.maxY);
+    return t;};
+   const warn=(t)=>{st.warn=t;st.warnUntil=performance.now()+2200;};
+   const sync=()=>{const c={x:st.x,z:st.z,L:st.L,ax:st.ax,az:st.az,latched:st.latched,load:st.load};crane?.set(c);return c;};
+   const latch=()=>{if(st.done)return;const [hx,hy,hz]=hookAt();
+    if(!st.latched){if(Math.hypot(hx-st.load[0],hz-st.load[2])<.75&&Math.abs(hy-1.45-st.load[1])<.45){st.latched=true;onSound('latch');}else{warn('HOOK IS NOT ON THE SLINGS');onSound('reject');}return;}
+    const t=under(hx,hz),amp=Math.hypot(st.ax,st.az)*st.L;
+    if(lowest(hy)-t>.2){warn('LOWER IT ALL THE WAY DOWN FIRST');onSound('reject');return;}
+    if(amp>.3){warn('LOAD SWINGING / STEADY IT');onSound('reject');return;}
+    st.latched=false;st.load=[hx,t,hz];onSound('clank');
+    if(t===FLOOR){st.done=true;onAnswer({x:+hx.toFixed(2),z:+hz.toFixed(2)});}else warn('THAT IS NOT THE FLOOR');};
+   const hold=(mesh,k,v)=>({mesh,type:'hold',down(){held.add(k+v);keys[k]=v;onSound('tick');},up(){held.delete(k+v);keys[k]=0;},drag(){}});
+   return {g,load(q){p=q;st.on=true;st.done=false;keys.x=keys.z=keys.h=0;const c=lastState?.crane;if(c)Object.assign(st,{x:c.x,z:c.z,L:c.L,latched:c.latched,load:[...c.load]});},
+    closed(){st.on=false;keys.x=keys.z=keys.h=0;onSound('whine',0);},
+    key(code,down){const v=down?1:0;
+     if(code==='KeyW')keys.z=v;else if(code==='KeyS')keys.z=-v;else if(code==='KeyA')keys.x=v;else if(code==='KeyD')keys.x=-v;
+     else if(code==='KeyR')keys.h=v;else if(code==='KeyF')keys.h=-v;else if(code==='Space'){if(down)latch();}else return false;return true;},
+    parts:[hold(bx[0],'z',1),hold(bx[1],'z',-1),hold(bx[2],'x',1),hold(bx[3],'x',-1),hold(bx[4],'h',1),hold(bx[5],'h',-1),{mesh:latchBtn,type:'click',click:latch}],
+    view(){const [hx,hy,hz]=hookAt();// Bridge camera: rides the crane bridge behind the trolley and watches the hook.
+     return {pos:[st.x,6.4,Math.max(13,st.z-8)],look:[hx,Math.max(hy-1.4,-7.6),hz],fov:58};},
+    update(dt,now,s){lastState=s;
+     if(!st.on){if(s?.crane)crane?.set(s.crane);return;}
+     dt=Math.min(dt,.05);
+     // Trolley and bridge accelerate gently; the hook lags behind as a pendulum.
+     const tvx=keys.x*2.2,tvz=keys.z*2.2,acc=1.0;
+     let axr=Math.max(-acc,Math.min(acc,(tvx-st.vx)/dt)),azr=Math.max(-acc,Math.min(acc,(tvz-st.vz)/dt));
+     let nx=st.x+(st.vx+axr*dt)*dt,nz=st.z+(st.vz+azr*dt)*dt;
+     nx=Math.max(CRANE.minX,Math.min(CRANE.maxX,nx));nz=Math.max(CRANE.minZ,Math.min(CRANE.maxZ,nz));
+     const [hx,hy]=hookAt(),low=lowest(hy),dx=nx-st.x,dz=nz-st.z;
+     if(under(hx+dx,(st.z+Math.sin(st.az)*st.L)+dz)>low+.02&&under(hx,st.z+Math.sin(st.az)*st.L)<=low+.02){
+      // Bump: the load hits something. Stop dead and let it swing.
+      axr=-st.vx/dt*.5;azr=-st.vz/dt*.5;st.wx+=st.vx*.25/Math.max(2,st.L);st.wz+=st.vz*.25/Math.max(2,st.L);st.vx=st.vz=0;nx=st.x;nz=st.z;
+      if(performance.now()-(st.lastBump||0)>600){st.lastBump=performance.now();onSound('clank');warn(low<1.3&&hx>39&&hx<45?'CATWALK / HOIST UP TO CLEAR IT':'OBSTRUCTION / HOIST UP');}
+     }else{st.vx+=axr*dt;st.vz+=azr*dt;}
+     if(nx===CRANE.minX||nx===CRANE.maxX)st.vx=0;if(nz===CRANE.minZ||nz===CRANE.maxZ)st.vz=0;
+     st.x=nx;st.z=nz;
+     // Hoist, stopping at whatever is underneath.
+     const Lp=st.L+(st.latched?1:.2);
+     if(keys.h){const nl=Math.max(CRANE.minL,Math.min(CRANE.maxL,st.L-keys.h*1.6*dt));const nhy=top-nl*Math.cos(st.ax)*Math.cos(st.az),[hx2,,hz2]=hookAt();if(lowest(nhy)>=under(hx2,hz2)-.001||nl<st.L)st.L=nl;}
+     const g0=9.8,damp=.11;
+     st.wx+=(-(g0/Lp)*Math.sin(st.ax)-(axr/Lp)*Math.cos(st.ax)-damp*st.wx)*dt;st.wz+=(-(g0/Lp)*Math.sin(st.az)-(azr/Lp)*Math.cos(st.az)-damp*st.wz)*dt;
+     st.ax+=st.wx*dt;st.az+=st.wz*dt;
+     const [fx,fy,fz]=hookAt();if(lowest(fy)<=under(fx,fz)+.05){st.wx*=.85;st.wz*=.85;}
+     const moving=Math.hypot(st.vx,st.vz)>.05||keys.h;onSound('whine',moving?.03:0);
+     const c=sync();if(now-st.sent>100){st.sent=now;onAction({t:'crane',...c});}},
+    fail(){st.done=false;},
+    status(){const [hx,hy,hz]=hookAt();const amp=Math.hypot(st.ax,st.az)*st.L;const w=performance.now()<st.warnUntil?` / ${st.warn}`:'';
+     return `PAD ${p?.pad??'?'} / ${st.latched?'LOAD ON':'HOOK'} ${Math.max(0,lowest(hy)-under(hx,hz)).toFixed(1)} M UP / SWING ${amp.toFixed(2)}${w}`;},
+    hintFn(){return `WORK ORDER: FLY THE APU CRATE (ВСУ) TO FLOOR PAD ${p?.pad??'?'}. BRIDGE CAMERA. WASD DRIVE, R/F HOIST, SPACE LATCH OR SET DOWN. HOIST HIGH TO CROSS THE CATWALK. STOP THE SWING BEFORE YOU SET IT DOWN.`;}};
+  },
+  clock(def){
+   // АЧС-1 board chronometer on the orbiter's panel and a МСК time readout. Wind the hands to the next
+   // full minute, then push ПУСК exactly on the long pip.
+   const g=new THREE.Group();box(.6,.3,.04,M.dark,0,0,-.03,g);
+   const face=screen(.19,.19,160,160);face.mesh.position.set(-.12,0,.0);g.add(face.mesh);
+   const bezel=new THREE.Mesh(new THREE.TorusGeometry(.1,.012,6,20),M.steel);bezel.position.set(-.12,0,.0);g.add(bezel);
+   const crown=knob(.022,M.steel);crown.position.set(-.235,-.08,.02);g.add(crown);
+   const ref=screen(.24,.07,192,56);ref.mesh.position.set(.14,.06,.0);g.add(ref.mesh);
+   const go=cyl(.028,.028,.03,M.red,10);go.rotation.x=Math.PI/2;go.position.set(.14,-.06,.015);g.add(go);
+   g.add(label('ПУСК',.07,.022,'#151513','#d6c68f'));g.children.at(-1).position.set(.14,-.105,.001);
+   g.add(label('ЧАСЫ БОРТОВЫЕ',.2,.025,'#151513','#d6c68f'));g.children.at(-1).position.set(-.12,.125,.001);
+   const st={set:0,t0:0,done:false,runAt:0,lastSec:-1,lastMin:0};let p;
+   const refSec=()=>p?p.base+(performance.now()-st.t0)/1000:0;
+   const draw=()=>{const r=refSec();
+    face.draw((c,W,H)=>{const cx=W/2,cy=H/2,R=W*.46;c.fillStyle='#121311';c.fillRect(0,0,W,H);c.fillStyle='#1b1c19';c.beginPath();c.arc(cx,cy,R,0,TAU);c.fill();
+     c.strokeStyle='#d8d2b0';c.fillStyle='#d8d2b0';for(let i=0;i<60;i++){const a=i/60*TAU;c.lineWidth=i%5?1:3;c.beginPath();c.moveTo(cx+Math.sin(a)*R*.92,cy-Math.cos(a)*R*.92);c.lineTo(cx+Math.sin(a)*R*(i%5?.86:.78),cy-Math.cos(a)*R*(i%5?.86:.78));c.stroke();}
+     c.font='bold 15px monospace';c.textAlign='center';for(let h=1;h<=12;h++){const a=h/12*TAU;c.fillText(String(h),cx+Math.sin(a)*R*.62,cy-Math.cos(a)*R*.62+5);}
+     c.font='8px monospace';c.fillText('АЧС-1',cx,cy+R*.38);
+     const hand=(a,len,w,col)=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.sin(a)*len,cy-Math.cos(a)*len);c.stroke();};
+     hand(((st.set/60)%12)/12*TAU,R*.5,5,'#e8e1c0');hand((st.set%60)/60*TAU,R*.8,3,'#e8e1c0');
+     const sec=st.done?(r-st.runAt)%60:0;hand(sec/60*TAU,R*.86,1.5,'#d2462e');c.fillStyle='#d2462e';c.beginPath();c.arc(cx,cy,4,0,TAU);c.fill();});
+    ref.draw((c,W,H)=>{const t=Math.floor(r),hh=Math.floor(t/3600)%24,mm=Math.floor(t/60)%60,ss=t%60;c.fillStyle='#120a05';c.fillRect(0,0,W,H);c.fillStyle='#ff9a3c';c.font='bold 30px monospace';c.textAlign='center';
+     c.fillText(`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`,W/2,40);c.font='9px monospace';c.fillStyle='#a8622a';c.fillText('МСК / ЕДИНОЕ ВРЕМЯ',W/2,52);});};
+   const press=()=>{if(st.done||!p)return;const r=refSec(),sec=r%60,err=sec>30?sec-60:sec;st.done=true;st.runAt=Math.round(r/60)*60;onSound('peg');
+    onAnswer({set:+st.set.toFixed(2),ref:Math.round(r/60),err:+err.toFixed(2)});};
+   return {g,load(q){p=q;st.t0=performance.now();st.set=q.base/60+q.drift;st.done=false;st.lastSec=-1;draw();},
+    parts:[{mesh:crown,type:'wheel',drag:d=>{if(st.done)return;st.set+=d*15;const m=Math.floor(st.set);if(m!==st.lastMin){st.lastMin=m;onSound('tick');}}},{mesh:go,type:'click',click:press}],
+    update(){if(!p)return;draw();const s=Math.floor(refSec())%60;if(s!==st.lastSec){st.lastSec=s;if(s>=55)onSound('pip');else if(s===0)onSound('pipLong');}},
+    fail(){st.done=false;},
+    status(){if(!p)return '';const r=refSec(),target=Math.floor(r/60)+1,hh=Math.floor(target/60)%24,mm=target%60,set=Math.round(st.set),sh=Math.floor(set/60)%12||12,sm=((set%60)+60)%60;
+     return `HANDS ${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')} / NEXT FULL MINUTE ${String(hh%12||12).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;},
+    hint:'THE ORBITER CLOCK HAS DRIFTED. DRAG THE CROWN TO SET THE HANDS TO THE NEXT FULL MINUTE ON THE МСК READOUT, THEN PRESS ПУСК ON THE LONG SIXTH PIP, EXACTLY AT :00.'};
+  },
  };
  for(const def of MACHINES){const b=builders[def.kind](def);place(b.g,def.anchor,def.face);machines.set(def.id,{def,...b,seed:null});}
  // ---------- sabotage rigs ----------
@@ -239,10 +425,10 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
   if(part.type==='click'){part.click();return;}
   const c=screenPos(part.mesh);lastAngle=Math.atan2(e.clientY-c.y,e.clientX-c.x);lastY=e.clientY;
   if(part.type==='dial'){const local=Math.atan2(-(e.clientY-c.y),e.clientX-c.x);if(part.down&&!part.down(local))return;}
-  else if(part.type==='plane'){part.down();}
+  else if(part.type==='plane'||part.type==='hold'){part.down();}
   else part.down?.();
   dragPart=part;canvas.setPointerCapture(e.pointerId);},true);
- canvas.addEventListener('pointermove',e=>{if(!active||!dragPart)return;e.stopPropagation();
+ canvas.addEventListener('pointermove',e=>{if(!active||!dragPart)return;e.stopPropagation();if(dragPart.type==='hold')return;
   if(dragPart.type==='plane'){const r=canvas.getBoundingClientRect();ndc.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);dragPart.move(ray.ray);return;}
   if(dragPart.type==='lever'){const d=(e.clientY-lastY)/160;lastY=e.clientY;dragPart.drag(d);return;}
   const c=screenPos(dragPart.mesh),a=Math.atan2(e.clientY-c.y,e.clientX-c.x);let d=a-lastAngle;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;lastAngle=a;dragPart.drag(d/TAU);},true);
@@ -253,9 +439,10 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
   open(kind,id,params){
    const m=kind==='machine'?machines.get(id):rigs.get(id);if(!m)return;
    m.load(params);active={kind,id,m};from={pos:camera.position.clone(),quat:camera.quaternion.clone()};blend=0;
-   document.body.classList.add('leaning');hint.hidden=false;hint.querySelector('p').textContent=m.hint;hint.querySelector('b').textContent=(m.def?.label||id.toUpperCase());
+   document.body.classList.add('leaning');hint.hidden=false;hint.querySelector('p').textContent=m.hintFn?.()||m.hint;hint.querySelector('small').textContent='';hint.querySelector('b').textContent=(m.def?.label||id.toUpperCase());
   },
-  close(){if(!active)return;active=null;dragPart=null;document.body.classList.remove('leaning');hint.hidden=true;onExit?.();},
+  key(code,down){return !!active?.m.key?.(code,down);},
+  close(){if(!active)return;active.m.closed?.();if(active.fov){camera.fov=active.fov;camera.updateProjectionMatrix();}active=null;dragPart=null;document.body.classList.remove('leaning');hint.hidden=true;onExit?.();},
   fail(reason){if(!active)return;active.m.fail?.();hint.querySelector('small').textContent=reason||'';onSound('reject');},
   // Per frame: animate every machine (so others see wheels turn and fuses out), and drive the camera when leaning.
   update(dt,now,state){
@@ -264,10 +451,12 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
    if(!active)return false;
    if(active.m.status)hint.querySelector('small').textContent=active.m.status();
    const def=active.m.def,anchor=def?def.anchor:active.m.anchor,face=def?def.face:active.m.face;
-   const close=def?{harness:1.05,phone:.55,radio:.55,centrifuge:.65,lathe:.85,synchro:.8,rods:1.0,valves:1.45,fuel:1.6}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
-   const up=def?{phone:.45,radio:.35,centrifuge:.45,rods:.45,synchro:.15,valves:.05}[def.kind]??.05:0;
-   tmp.set(anchor.x+face.x*close,anchor.y+up+(def?.kind==='phone'?.0:0),anchor.z+face.z*close);
-   look.lookAt(tmp,new THREE.Vector3(anchor.x,anchor.y+(def?.kind==='rods'?.25:0),anchor.z),camera.up);goalQ.setFromRotationMatrix(look);
+   const close=def?{radar:.75,furnace:1.3,coolant:1.25,keypad:.65,tubes:.8,harness:1.05,phone:.55,radio:.55,centrifuge:.65,lathe:.85,synchro:.8,rods:1.0,valves:1.45,fuel:1.6,clock:.5,crane:.6}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
+   const up=def?{radar:.3,keypad:.05,phone:.45,radio:.35,centrifuge:.45,rods:.45,synchro:.15,valves:.2}[def.kind]??.05:0;
+   const view=active.m.view?.();
+   if(view){tmp.set(...view.pos);look.lookAt(tmp,new THREE.Vector3(...view.look),camera.up);if(view.fov){active.fov??=camera.fov;const f=active.fov+(view.fov-active.fov)*Math.min(1,blend);if(Math.abs(camera.fov-f)>.01){camera.fov=f;camera.updateProjectionMatrix();}}}
+   else{tmp.set(anchor.x+face.x*close,anchor.y+up,anchor.z+face.z*close);
+   look.lookAt(tmp,new THREE.Vector3(anchor.x,anchor.y+(def?.kind==='rods'?.25:0),anchor.z),camera.up);}goalQ.setFromRotationMatrix(look);
    blend=Math.min(1,blend+dt*3.5);const k=1-Math.pow(1-blend,3);camera.position.lerpVectors(from.pos,tmp,k);camera.quaternion.slerpQuaternions(from.quat,goalQ,k);
    return true;
   },

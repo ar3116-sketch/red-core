@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {HANGAR,HANGAR_GALLERIES,HANGAR_FLOOR,HANGAR_STAIR,HANGAR_RAILS,HANGAR_RAIL_GAPS,HANGAR_FIXTURES,BURAN,HANGAR_LEAK} from '../shared/hangar.js';
 import {surfaceY} from '../shared/sewer.js';
+import {buildBuran} from './buran.js';
 
 function canvasTexture(w,h,draw,repeat=[1,1]){
  const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);
@@ -49,32 +50,34 @@ export function buildHangar(scene,{box,roomSign,steel,dark,rust,hazard}){
  for(const g of HANGAR_RAIL_GAPS){for(const [x,z] of [[g.x1,g.z1],[g.x2,g.z2]]){const stub=box(.06,.7,.06,x,.6,z,rust);stub.rotation.z=.6;}box(Math.abs(g.x2-g.x1)||.3,.012,Math.abs(g.z2-g.z1)||.3,(g.x1+g.x2)/2,.01,(g.z1+g.z2)/2,hazard);}
  // Roof trusses, a gantry crane and the work lamps.
  for(let x=minX+4;x<maxX;x+=6){box(.3,.6,D,x,top-.5,cz,steel);for(let z=minZ+2;z<maxZ;z+=4)box(.08,.08,2.6,x,top-.9,z,dark).rotation.x=.6;}
- box(W-1,.8,.8,cx,top-2,24,yellow);box(1.4,1,1.2,36,top-2.8,24,yellow);beam(new THREE.Vector3(36,top-3.3,24),new THREE.Vector3(36,-1,24),.03,dark);box(.5,.4,.3,36,-1.2,24,steel);
+ // The gantry crane is live: its bridge, trolley, cable, hook and load move with the operator.
+ const crane=new THREE.Group();crane.userData.dynamic=true;scene.add(crane);
+ const bridge=new THREE.Mesh(new THREE.BoxGeometry(W-1,.8,.8),yellow);bridge.position.set(cx,top-2,0);crane.add(bridge);
+ const trolley=new THREE.Mesh(new THREE.BoxGeometry(1.4,1,1.2),yellow);crane.add(trolley);
+ const cable=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,1,5),new THREE.MeshLambertMaterial({color:0x9a9480}));crane.add(cable);
+ const hook=new THREE.Mesh(new THREE.BoxGeometry(.5,.4,.3),yellow);crane.add(hook);
+ // A work lamp rides on the hook block so the operator can find it from the gallery.
+ const hookLamp=new THREE.Mesh(new THREE.BoxGeometry(.18,.1,.18),new THREE.MeshBasicMaterial({color:0xffc070}));hookLamp.position.y=-.25;hook.add(hookLamp);
+ const hookLight=new THREE.PointLight(0xffb060,14,9,1.4);hookLight.position.y=-.6;hook.add(hookLight);
+ const load=new THREE.Group();load.userData.dynamic=true;scene.add(load);
+ const pallet=new THREE.Mesh(new THREE.BoxGeometry(1.4,.15,1.1),rust);pallet.position.y=.075;load.add(pallet);const crate=new THREE.Mesh(new THREE.BoxGeometry(1.1,.9,.9),new THREE.MeshLambertMaterial({color:0xa58450}));crate.position.y=.6;load.add(crate);
+ const lbl=document.createElement('canvas');lbl.width=64;lbl.height=32;const lg=lbl.getContext('2d');lg.fillStyle='#a58450';lg.fillRect(0,0,64,32);lg.fillStyle='#1b1a14';lg.font='bold 14px monospace';lg.fillText('ВСУ',14,21);const lt=new THREE.CanvasTexture(lbl);lt.magFilter=lt.minFilter=THREE.NearestFilter;
+ for(const sx of [-1,1]){const pl=new THREE.Mesh(new THREE.PlaneGeometry(.6,.3),new THREE.MeshLambertMaterial({map:lt}));pl.position.set(sx*.56,.6,0);pl.rotation.y=sx*Math.PI/2;load.add(pl);}
+ // Floor pads: numbered squares the work orders refer to.
+ const padTex=n=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');g.fillStyle='#1c1a14';g.fillRect(0,0,64,64);g.strokeStyle='#c9a032';g.lineWidth=6;g.strokeRect(4,4,56,56);g.fillStyle='#c9a032';g.font='bold 30px monospace';g.textAlign='center';g.fillText(n,32,43);const t=new THREE.CanvasTexture(c);t.magFilter=t.minFilter=THREE.NearestFilter;return t;};
+ [[34,30],[50,30],[30,26],[30,36],[47,18]].forEach(([x,z],i)=>{const pad=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),new THREE.MeshLambertMaterial({map:padTex(String(i+1)),polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8}));pad.rotation.x=-Math.PI/2;pad.position.set(x,floor+.02,z);scene.add(pad);});
+ {const pk=new THREE.Mesh(new THREE.PlaneGeometry(2.2,2.2),new THREE.MeshLambertMaterial({map:padTex('П'),polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8}));pk.rotation.x=-Math.PI/2;pk.position.set(56,floor+.02,40);scene.add(pk);}
+ const craneApi={set(c){const x=c.x,z=c.z,L=c.L;bridge.position.z=z;trolley.position.set(x,top-2.8,z);
+  const hx=x+Math.sin(c.ax||0)*L,hz=z+Math.sin(c.az||0)*L,hy=top-3.3-L*Math.cos(c.ax||0)*Math.cos(c.az||0);
+  cable.position.set((x+hx)/2,(top-3.3+hy)/2,(z+hz)/2);cable.scale.y=Math.max(.1,Math.hypot(hx-x,hy-(top-3.3),hz-z));cable.lookAt(hx,hy,hz);cable.rotateX(Math.PI/2);
+  hook.position.set(hx,hy-.2,hz);
+  if(c.latched)load.position.set(hx,hy-1.45,hz);else if(c.load)load.position.set(c.load[0],floor,c.load[2]);}};
+ craneApi.set({x:56,z:40,L:12,ax:0,az:0,latched:false,load:[56,floor,40]});
  for(const [x,z] of [[31,20],[53,20],[31,40],[53,40],[42,24],[42,38]]){
   box(1.2,.3,1.2,x,top-1.6,z,dark);const bulb=new THREE.Mesh(new THREE.CylinderGeometry(.45,.6,.2,8),new THREE.MeshBasicMaterial({color:0xe0b56a}));bulb.position.set(x,top-1.85,z);scene.add(bulb);
   const light=new THREE.PointLight(0xe0a75e,70,34,1.3);light.position.set(x,top-2.3,z);scene.add(light);
  }
- // The orbiter: white fuselage, black belly and leading edges, delta wings, tail fin.
- const buran=new THREE.Group();buran.position.set(BURAN.x,floor+3.1,BURAN.z);scene.add(buran);
- const add=(geo,mat,x,y,z,rx=0,ry=0,rz=0)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.rotation.set(rx,ry,rz);buran.add(m);return m;};
- add(new THREE.CylinderGeometry(1.7,1.7,15,12),white,0,0,1,Math.PI/2);
- add(new THREE.CylinderGeometry(1.72,1.72,15,12,1,true,Math.PI*1.65,Math.PI*.7),black,0,-.02,1,Math.PI/2);
- add(new THREE.SphereGeometry(1.7,12,8,0,Math.PI*2,0,Math.PI/2),white,0,0,-6.5,-Math.PI/2).scale.set(1,2.4,1);
- for(const x of [-.7,0,.7])add(new THREE.BoxGeometry(.45,.3,.05),black,x,1.25,-7.4,-.5);
-  for(const side of [-1,1]){
-  // Each wing is its own mirrored outline so neither ends up with inside-out faces.
-  const wing=new THREE.Shape();wing.moveTo(0,-4);wing.lineTo(side*6.6,4.2);wing.lineTo(side*6.6,6.4);wing.lineTo(0,6.6);wing.closePath();
-  const geo=new THREE.ExtrudeGeometry(wing,{depth:.28,bevelEnabled:false});add(geo,new THREE.MeshLambertMaterial({color:0xd8d5c4,side:THREE.DoubleSide}),side*1.2,-.9,0,Math.PI/2,0,0);
-  add(new THREE.BoxGeometry(.25,.32,9.4),black,side*(1.2+3.3),-1.05,1.6,0,side*Math.atan2(6.6,8.2));
- }
- const fin=new THREE.Shape();fin.moveTo(0,0);fin.lineTo(4.2,0);fin.lineTo(4.4,4.6);fin.lineTo(2.6,4.6);fin.closePath();
- add(new THREE.ExtrudeGeometry(fin,{depth:.25,bevelEnabled:false}),white,-.12,1.4,4.4,0,-Math.PI/2,0);
- add(new THREE.BoxGeometry(3,2.6,1.4),white,0,0,8.6);for(const [x,y] of [[-.8,.5],[.8,.5],[0,-.5]])add(new THREE.CylinderGeometry(.35,.5,.8,8),black,x,y,9.5,Math.PI/2);
- const decal=canvasTexture(128,32,(g)=>{g.fillStyle='#d8d5c4';g.fillRect(0,0,128,32);g.fillStyle='#b3352a';g.fillRect(4,6,30,20);g.fillStyle='#e8c35a';g.fillRect(8,9,5,5);g.fillStyle='#1b1c1a';g.font='bold 20px monospace';g.fillText('СССР',42,24);});
- for(const side of [-1,1]){const p=add(new THREE.PlaneGeometry(3.2,.8),new THREE.MeshLambertMaterial({map:decal}),side*1.72,.4,-1,0,side*Math.PI/2,0);void p;}
- const name=canvasTexture(128,32,(g)=>{g.fillStyle='#d8d5c4';g.fillRect(0,0,128,32);g.fillStyle='#1b1c1a';g.font='bold 22px monospace';g.fillText('БУРАН',18,24);});
- for(const side of [-1,1])add(new THREE.PlaneGeometry(2.6,.65),new THREE.MeshLambertMaterial({map:name}),side*1.72,-.5,4,0,side*Math.PI/2,0);
- for(const [x,z] of [[0,-5],[-2.2,3],[2.2,3]]){add(new THREE.CylinderGeometry(.12,.12,1.6,6),steel,x,-2.2,z);add(new THREE.CylinderGeometry(.35,.35,.3,8),black,x,-2.9,z,0,0,Math.PI/2);}
+ buildBuran(scene,{box,steel,dark,yellow,deckMat});
  // Scaffolding towers in signal yellow.
  for(const f of HANGAR_FIXTURES.filter(f=>f.id.startsWith('scaffold'))){
   const h=f.maxY-f.minY;for(const sx of [-1,1])for(const sz of [-1,1])box(.1,h,.1,f.x+sx*(f.w/2-.05),f.minY+h/2,f.z+sz*(f.d/2-.05),yellow);
@@ -90,6 +93,7 @@ export function buildHangar(scene,{box,roomSign,steel,dark,rust,hazard}){
  // A banner across the far wall.
  const banner=canvasTexture(256,40,(g)=>{g.fillStyle='#8e2a21';g.fillRect(0,0,256,40);g.fillStyle='#e9d9a6';g.font='bold 15px monospace';g.textAlign='center';g.fillText('СЛАВА СОВЕТСКОЙ КОСМОНАВТИКЕ!',128,26);for(let i=0;i<80;i++){g.fillStyle='rgba(0,0,0,.15)';g.fillRect(Math.random()*256,Math.random()*40,2,6);}});
  const b=new THREE.Mesh(new THREE.PlaneGeometry(24,3.8),new THREE.MeshLambertMaterial({map:banner}));b.position.set(cx,5.2,maxZ-.35);b.rotation.y=Math.PI;scene.add(b);
- roomSign('АНГАР 2 / HANGAR 2',26.8,2.6,12.2,0,'#d6a14e');roomSign('EAST HALL',26.8,2.6,11.8,Math.PI);
+ roomSign('АНГАР 2 / HANGAR 2',26.8,2.6,12.2,0,'#d6a14e');roomSign('АНГАР 2 / BURAN HANGAR',26.8,2.6,11.8,Math.PI);
  roomSign('ОСТОРОЖНО / ВЫСОТА 8 M',24,1.7,15.4,Math.PI,'#d6a14e');
+ return {crane:craneApi};
 }

@@ -28,7 +28,7 @@ export const FURNITURE_KINDS={
 // Interior walls are .22 thick, so wall-face coordinates sit .11 off the wall line.
 export const FURNITURE=[
  // CONTROL: two operators' desks off the door-to-door diagonals, a portrait, a radiator and the room's coat rack.
- {room:'control',kind:'desk',x:-4.54,z:-2.5,r:1,top:['typewriter','papers','ashtray','phone']},
+ {room:'control',kind:'desk',x:-4.54,z:-2.5,r:1,top:['ashtray']},
  {room:'control',kind:'chair',x:-3.8,z:-2.45,r:3},
  {room:'control',kind:'desk',x:4.54,z:3.3,r:3,top:['lamp','papers','binder']},
  {room:'control',kind:'chair',x:3.78,z:3.25,r:1},

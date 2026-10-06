@@ -68,6 +68,9 @@ Walk to a job, lean in, work it with your hands, cool the core, move on. Tasks a
 | Generator sync | Substation | Turn the knob until the synchroscope needle creeps, then throw the breaker as it crosses the green wedge | Core −4% | 75 s |
 | Control rods | Reactor core | Two levers that creep back; hold both in their bands for 2 s | Core −7% | 90 s |
 | Fuel transfer | Hangar floor (8 m down) | Open valves А/Б/В in the placard's order, two turns each | Pressure −6, core −2% | 75 s |
+| Air defence radar | Control | Four surface nodes drift out of phase on a green PPI scope; turn each knob until its blip sits on the sweep, before they drift further | Core −3%, pressure −3 | 70 s |
+| Gantry crane | Pendant at the hangar's north gallery lip | Drive the real overhead crane (WASD, R/F hoist, SPACE latch) through the bridge camera, fly the APU crate to the pad on the work order, hoist high to clear the catwalk, and kill the pendulum swing before set-down. Everyone in the hangar sees it move | Pressure −5, core −4% | 80 s |
+| Buran chronometer | Inside the orbiter's flight deck (stair truck to the port hatch) | Wind the АЧС-1 clock's crown to the next full minute on the МСК readout, then press ПУСК on the long sixth pip of the time signal | Core −3%, pressure −3 | 60 s |
 
 Each machine generates a new puzzle every cycle, and the server checks the answer.
 
@@ -92,6 +95,7 @@ Look like an engineer, push the core toward 100%, and never get caught in the ac
 | Tunnel blast doors (control) | Dial the 3-digit override code only the saboteur's HUD shows, then pull the lever | Both tunnels sealed for 22 s |
 | Camera cables (6 boxes) | Cut the one wire the card describes (colour plus stripe count); the wrong wire logs a **TAMPER ALERT** | That CCTV feed dies until spliced |
 
+- **Crisis arrows:** like Among Us, every live emergency (armed sabotage, reversed valve, blackout, cut camera, someone hanging off a lip) gets a cyan marker over the spot, or an arrow on the screen edge with the distance in metres. ▲/▼ means it's on another level.
 - **Never a blindside:** a completed sabotage **arms for 8 s** first. Every engineer gets a flashing warning with the location and a siren. Anyone who reaches it and holds E for 1.8 s stops it, and the CCTV log records the interrupted tampering.
 - **Cooldown:** 25 s between sabotages.
 - **Evidence:** a powered, uncut camera in the same room logs `CAM 06 / FIGURE AT COOLANT VALVE / 03:14` in the SCIF.
@@ -139,7 +143,8 @@ Evolve, then escape. Kill when it pays. Save the reactor when you must.
 - **Below:** a two-level sewer with the coolant basin.
 - **East wing:** tunnel, hall with an open cooling shaft, substation, barracks, lift passage and surface lift.
 - **West wing:** tunnel, hall with a shaft, storage and archive.
-- **Hangar 2:** galleries round an 8 m drop to the Buran orbiter, a catwalk bridge over its spine, and a stair to the floor.
+- **Hangar 2:** galleries round an 8 m drop to the Buran orbiter, a catwalk bridge over its spine, and a stair to the floor. A stair truck on the port side leads through the open hatch into the orbiter's flight deck.
+- **Camera room (the SCIF):** west of the workshop, behind a keypad door. The code comes from the clue note beside the keypad or the barracks shortwave radio. Seat 3 vacuum tubes inside to power the 6 CCTV feeds and the SCIF radio desk.
 
 Crossing the map end to end takes about 34 s at walking speed. Lethal edges cluster where the work is, so tasks pull people to the drops.
 
