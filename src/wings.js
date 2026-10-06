@@ -109,9 +109,7 @@ export function buildWings(scene,{box,pipe,roomSign,wall,floor,steel,dark,rust,h
  const lockers=at('storage-lockers');for(let i=0;i<5;i++){box(.76,lockers.h,lockers.d,lockers.x-lockers.w/2+.4+i*.8,lockers.h/2,lockers.z,i===2?grime:steel);box(.5,.03,.02,lockers.x-lockers.w/2+.4+i*.8,1.6,lockers.z+lockers.d/2+.01,dark);}
  const sc=at('storage-crates');box(sc.w,sc.h,sc.d,sc.x,sc.h/2,sc.z,rust);
  // Archive: a mainframe wall of tape drives and filing cabinets.
- const mf=at('mainframe');cabinet(mf,grime);
- for(let i=0;i<6;i++){const z=mf.z-mf.d/2+.6+i*1.15;for(const dy of [1.55,.95]){const reel=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,.04,10),dark);reel.rotation.z=Math.PI/2;reel.position.set(mf.x+mf.w/2+.03,dy,z);scene.add(reel);}box(.03,.1,.5,mf.x+mf.w/2+.02,.5,z,i%2?hazard:paper);}
- roomSign('ЭВМ-86 / MAINFRAME',mf.x+mf.w/2+.03,2.6,mf.z,Math.PI/2,'#c6d0a1');
+ // The mainframe itself is built in mainframe.js.
  const files=at('file-row');for(let i=0;i<6;i++){box(.8,files.h,files.d,files.x-files.w/2+.42+i*.83,files.h/2,files.z,steel);for(let j=0;j<3;j++)box(.5,.04,.02,files.x-files.w/2+.42+i*.83,.3+j*.45,files.z+files.d/2+.01,dark);}
  const sweeper=at('sweeper-safe');cabinet(sweeper,new THREE.MeshLambertMaterial({color:0x52675b}));box(.7,.5,.04,sweeper.x,1.15,sweeper.z-sweeper.d/2-.02,new THREE.MeshBasicMaterial({color:0x2c4a33}));
  roomSign('MUTAGEN SAFE 02 / GRID',sweeper.x,2.1,sweeper.z-sweeper.d/2-.03,Math.PI,'#a4cab1');

@@ -126,3 +126,21 @@ body.leaning .hud-el:not(#note){display:none!important}body.leaning #mask-rim{op
 body.leaning #c{cursor:grab}
 #warning{position:fixed;left:50%;top:64px;transform:translateX(-50%);padding:10px 16px;background:#5e1c16ee;border:2px solid #d6a14e;color:#f2e2b0;font-size:13px;z-index:13;text-align:center;animation:warnpulse .5s steps(2) infinite}
 @keyframes warnpulse{50%{background:#8e2a21ee}}
+
+/* ===== Period-correct prompts: teleprinter paper, typed shift orders, Dymo tape ===== */
+#coach{background:#d9d0ab;color:#2a261b;border:0;box-shadow:3px 4px 0 #0008;font:13px/1.55 'Courier New',Courier,monospace;padding:14px 18px 18px;transform:translateX(-50%) rotate(-.6deg);
+ clip-path:polygon(0 4px,4% 0,9% 5px,15% 1px,22% 4px,30% 0,38% 5px,46% 1px,54% 4px,62% 0,70% 5px,78% 1px,86% 4px,93% 0,100% 4px,100% 100%,0 100%);
+ background-image:repeating-linear-gradient(0deg,transparent 0 19px,#b5a98222 19px 20px),radial-gradient(circle at 12px 50%,#00000022 4px,transparent 5px);text-shadow:.4px 0 #2a261b88}
+#coach b{color:#7a2a1e;font:11px 'Courier New',monospace;font-weight:bold;letter-spacing:1px}
+#objectives{background:#cfc6a0e6;color:#2a261b;padding:8px 12px 10px;font:11px/1.7 'Courier New',Courier,monospace;text-shadow:none;box-shadow:2px 3px 0 #0007;transform:rotate(.4deg);max-width:min(40vw,330px)}
+#objectives::before{content:'НАРЯД НА СМЕНУ / SHIFT ORDERS';display:block;font-weight:bold;font-size:10px;color:#7a2a1e;border-bottom:1px solid #2a261b55;margin-bottom:4px}
+#objectives li::before{content:'□ ';color:#2a261b}#objectives li.done{color:#6d6650}#objectives li.done::before{content:'☒ '}#objectives li.urgent{color:#8e2a1e;font-weight:bold}#objectives li.urgent::before{content:'! ';color:#8e2a1e}
+#prompt{background:#141412;color:#ece6cc;font:12px/1 'Courier New',monospace;font-weight:bold;letter-spacing:2px;padding:6px 10px;border-radius:3px;box-shadow:0 2px 0 #000,inset 0 1px 0 #ffffff14;text-shadow:0 -1px 0 #000,0 1px 0 #ffffff22;bottom:110px!important}
+#prompt:empty{display:none}
+#event{font:11px 'Courier New',monospace!important;font-weight:bold!important;color:#e8c27a!important;background:#100f0bcc;padding:3px 10px;letter-spacing:1px}
+#event:empty{display:none}
+#note{font:13px 'Courier New',monospace;font-weight:bold;color:#efe1b0}
+#radio{background:#1a1712f0;border-left:3px solid #c9a032;font-family:'Courier New',monospace}#radio p{font-family:'Courier New',monospace}
+#machine-hint{background:#d9d0ab;color:#2a261b;border:0;box-shadow:3px 4px 0 #0008;font:12px/1.5 'Courier New',monospace}#machine-hint b{color:#7a2a1e;font:bold 12px 'Courier New',monospace}#machine-hint small{color:#8e2a1e}#machine-hint span{color:#5a5440}
+#warning{font-family:'Courier New',monospace;font-weight:bold;letter-spacing:1px}
+@media(max-width:530px){#objectives{max-width:62vw;font-size:9px}}

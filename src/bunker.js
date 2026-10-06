@@ -12,6 +12,7 @@ import {buildWings} from './wings.js';
 import {buildStations} from './stations-view.js';
 import {buildHangar} from './hangar.js';
 import {decorate} from './decor.js';
+import {buildMainframe} from './mainframe.js';
 import {buildFurniture} from './furnish.js';
 import { ROOMS, WALLS, DOORS, FIXTURES } from '../shared/world.js';
 import { CONSOLE_POSITION } from '../shared/constants.js';
@@ -84,15 +85,36 @@ export function buildBunker(scene) {
   }
 
   const random = seeded(8604);
+  // Enamel plates, not glowing boards: lit by the room, chipped and stained, Russian first.
+  const RU={'WORKSHOP':'МАСТЕРСКАЯ','CONTROL':'ПУЛЬТ УПРАВЛЕНИЯ','EXTRACTION':'ДЕЗАКТИВАЦИЯ','PUMP ROOM':'НАСОСНАЯ','REACTOR HALL':'РЕАКТОРНЫЙ ЗАЛ','CONTAINMENT':'ИЗОЛЯТОР',
+   'EAST TUNNEL':'ВОСТОЧНЫЙ ТОННЕЛЬ','WEST TUNNEL':'ЗАПАДНЫЙ ТОННЕЛЬ','EAST HALL':'ВОСТОЧНЫЙ ЗАЛ','WEST HALL':'ЗАПАДНЫЙ ЗАЛ','SUBSTATION':'ПОДСТАНЦИЯ','BARRACKS':'КАЗАРМА',
+   'SURFACE LIFT':'ПОДЪЁМНИК','STORAGE':'СКЛАД','ARCHIVE':'АРХИВ','INCINERATOR':'МУСОРОСЖИГАТЕЛЬ','CAMERAS / LOCKED':'ВИДЕОНАБЛЮДЕНИЕ','SEWER / UPPER':'КОЛЛЕКТОР','ASSEMBLY BENCH':'СБОРОЧНЫЙ СТОЛ',
+   'EXIT / SEALED':'ВЫХОД ЗАКРЫТ','SERVICE PIT / OPEN':'СМОТРОВАЯ ЯМА','STAIRS / DOWN':'ЛЕСТНИЦА ВНИЗ','STAIRS / UP':'ЛЕСТНИЦА ВВЕРХ','DANGER / OPEN SHAFT':'ОПАСНО! ШАХТА','ISOLATION 09':'ИЗОЛЯЦИЯ 09'};
+  const plateMats=new Map();
   function roomSign(text,x,y,z,angle=0,color='#c6d0a1') {
-    const c=document.createElement('canvas');c.width=256;c.height=48;
-    const g=c.getContext('2d');g.fillStyle='#121b14';g.fillRect(0,0,256,48);
-    g.strokeStyle=color;g.lineWidth=3;g.strokeRect(2,2,252,44);
-    g.fillStyle=color;g.font='bold 21px monospace';g.textAlign='center';g.fillText(text,128,31);
-    const texture=new THREE.CanvasTexture(c);texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.NearestFilter;texture.colorSpace=THREE.SRGBColorSpace;
-    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(2.6,.49),new THREE.MeshBasicMaterial({map:texture}));
-    mesh.position.set(x,y,z);mesh.rotation.y=angle;if(text.startsWith('E /'))mesh.scale.setScalar(.55);scene.add(mesh);
+    if(text.startsWith('E /'))return;
+    const danger=/DANGER|ОПАСНО|ВЫСОТА/.test(text);
+    const ru=RU[text]??(/[А-Я]/.test(text)?text.split(' / ')[0]:null),en=RU[text]?text:(/[А-Я]/.test(text)&&text.includes(' / ')?text.split(' / ').slice(1).join(' / '):text);
+    const key=text+color;let material=plateMats.get(key);
+    if(!material){
+     const c=document.createElement('canvas');c.width=192;c.height=48;const g=c.getContext('2d');
+     let seed=0;for(const ch of text)seed=(seed*31+ch.charCodeAt(0))>>>0;const r=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
+     if(danger){for(let i=-4;i<20;i++){g.fillStyle=i%2?'#1c1a14':'#c9a032';g.beginPath();g.moveTo(i*16,0);g.lineTo(i*16+16,0);g.lineTo(i*16-8,48);g.lineTo(i*16-24,48);g.fill();}g.fillStyle='#c9a032';g.fillRect(6,8,180,32);}
+     else{g.fillStyle='#2c3328';g.fillRect(0,0,192,48);g.fillStyle='#454d3c';g.fillRect(2,2,188,44);g.fillStyle='#2c3328';g.fillRect(4,4,184,40);}
+     g.fillStyle=danger?'#1c1a14':'#d6ceaa';g.textAlign='center';
+     if(ru){g.font='bold 17px monospace';g.fillText(ru,96,26,176);g.font='bold 9px monospace';g.fillText(en,96,40,176);}else{g.font='bold 16px monospace';g.fillText(en,96,30,176);}
+     // Chips down to bare metal, rust runs, grime at the edges.
+     for(let i=0;i<14;i++){g.fillStyle=r()<.5?'#6b4a2a':'#1a1d16';g.fillRect(r()*192,r()*48,1+r()*4,1+r()*3);}
+     for(let i=0;i<3;i++){g.fillStyle='rgba(90,55,25,.35)';g.fillRect(r()*192,r()*20,2,10+r()*18);}
+     g.fillStyle='rgba(10,10,6,.25)';g.fillRect(0,0,192,3);g.fillRect(0,45,192,3);
+     for(const bx of [5,185])for(const by of [6,40]){g.fillStyle='#7a7a68';g.fillRect(bx,by,3,3);}
+     const texture=new THREE.CanvasTexture(c);texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.NearestFilter;texture.colorSpace=THREE.SRGBColorSpace;
+     material=new THREE.MeshLambertMaterial({map:texture,emissive:0x1a1a12,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});plateMats.set(key,material);
+    }
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.375),material);
+    mesh.position.set(x,y-.15,z);mesh.rotation.y=angle;mesh.rotation.z=(Math.sin(x*12.9+z*7.3))*.015;scene.add(mesh);
   }
+
   for(const room of ROOMS) {
     const tint=new THREE.MeshLambertMaterial({map:wall.map,color:room.color});
     for(let x=-3.75;x<5;x+=2.5)for(let z=-3.75;z<5;z+=2.5)box(2.5,.12,2.5,room.x+x,-.06,room.z+z,floor);
@@ -224,7 +246,7 @@ export function buildBunker(scene) {
   function update(dt, temp, pressure, blackout, safeOpened=false,cameraOpened=false,tubesPowered=false,coolantState={intake:25,bypass:75,cycle:0,filterReady:false,filterProgress:0,cooldown:0},extra={}) {
     safeAngle += ((safeOpened?-1.45:0)-safeAngle)*Math.min(1,dt*5);
     safeDoor.rotation.y=safeAngle;
-    elapsed += dt;reactor.update(dt,elapsed,temp,pressure,blackout,coolantState);equipment.update(dt);sewer.update(elapsed,blackout);wings.update(elapsed,blackout,extra.liftOpen||0,extra.alarm||false);facility.update(dt,elapsed,cameraOpened,tubesPowered);
+    elapsed += dt;reactor.update(dt,elapsed,temp,pressure,blackout,coolantState);equipment.update(dt);sewer.update(elapsed,blackout);wings.update(elapsed,blackout,extra.liftOpen||0,extra.alarm||false);mainframe.update(elapsed);facility.update(dt,elapsed,cameraOpened,tubesPowered);
     for(const l of roomLamps){const voltage=blackout?.07:lampVoltage(elapsed,l.seed,l.damaged);l.light.intensity=12*voltage;for(const b of l.bulbs)b.color.copy(glow.color).multiplyScalar(voltage);}
     screenClock += dt;
     if (screenClock >= .12) {
@@ -264,6 +286,7 @@ export function buildBunker(scene) {
   buildHangar(scene,{box,roomSign,steel,dark,rust,hazard});
   decorate(scene);
   buildFurniture(scene,{steel,dark,rust});
+  const mainframe=buildMainframe(scene);
   const stations=buildStations(scene);
   addWorldDetail(scene);
   batchStatic(scene);
