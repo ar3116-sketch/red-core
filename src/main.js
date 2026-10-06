@@ -37,6 +37,9 @@ import {setMode,getMode,setRole,renderLobby,renderBriefing,renderOver,bindCopy} 
 import {renderObjectives,renderSpecimen} from './hud.js';
 import {createTutorial} from './tutorial.js';
 import {createDiegetic} from './diegetic.js';
+import {createMachines} from './machines.js';
+import {MACHINES,nearMachine,machineSeed,puzzle,sabPuzzle} from '../shared/machines.js';
+import {SAB_COOLDOWN} from '../shared/stations.js';
 import {COOLANT_STATION} from '../shared/coolant.js';
 
 const $=id=>document.getElementById(id);
@@ -91,6 +94,7 @@ let yaw=0,pitch=0,sensitivity=1;
 const note=t=>{$('note').textContent=t;noteUntil=performance.now()+2600;};
 const tutorial=createTutorial({send,done:()=>leave()});
 const has=id=>Object.values(me.mutations||{}).includes(id);
+const SABOTAGE_LABELS={valve:'pump room valve',breaker:'substation breaker',doors:'tunnel blast doors','coax-core':'camera 01 cable','coax-coolant':'camera 02 cable','coax-filters':'camera 03 cable','coax-e-hall':'camera 04 cable','coax-w-hall':'camera 05 cable','coax-pumps':'camera 06 cable'};
 
 // ---------- panels ----------
 const keys=new Set();
@@ -107,11 +111,23 @@ const facilityPanels=createFacilityPanels(pin=>send({t:'cameraPin',pin}),()=>sen
 const tubes=createTubeTask((index,value)=>{audio.cue('turn');send({t:'tubeTurn',index,value});},()=>keys.clear());
 const relay=createRelayTask(action=>send({t:'relayAction',action:{...action,cycle:relayState.cycle}}),()=>keys.clear());
 const blockers=()=>[relay,chess,coolant,facilityPanels,tubes,sweeper,scope,mutation,ventMap,scif].filter(p=>p.isOpen);
-const panelOpen=()=>blockers().length>0||!$('pause').hidden;
+const panelOpen=()=>blockers().length>0||!$('pause').hidden||!!machines?.active;
 const beat=createBeatBar();
 const floorPlan=createFloorPlan(()=>getMode()==='shift'&&!panelOpen());
 // Machine panels sit on the machines themselves.
 diegetic=createDiegetic();diegetic.setSize(canvas.clientWidth,canvas.clientHeight);
+// Tactile machines and sabotage rigs, worked in 3D.
+const lastFoley={};
+function taskSound(kind,v=1){
+ if(kind==='static'||kind==='radio-clear'){audio.loop('static',kind==='static'?v*.1:0);audio.loop('carrier',kind==='radio-clear'?.04:0);return;}
+ if(kind==='whine'){audio.loop('whine',v);return;}
+ const now=performance.now(),gap={turn:90,tick:45,squeal:240,spark:160}[kind]??60;if(now-(lastFoley[kind]||0)<gap)return;lastFoley[kind]=now;
+ audio.cue(kind==='turn'?'creak':kind);
+}
+const machines=createMachines(scene,{camera,canvas,
+ onAnswer:a=>{const m=machines.active;if(m)send({t:'machine',id:m.id,answer:a});},
+ onSabAnswer:a=>{const m=machines.active;if(m)send({t:'sabDone',id:m.id,answer:a});},
+ onSound:taskSound,onExit:()=>{keys.clear();audio.stopLoops?.();}});
 for(const [id,a,w] of [['relay-panel',{x:0,y:1.2,z:-7.5},.95],['coolant-panel',{x:COOLANT_STATION.x,y:COOLANT_STATION.y+1.25,z:COOLANT_STATION.z},.9],['access-panel',{x:-14.75,y:1.45,z:-3.3},.85],['burn-panel',{x:21,y:1.35,z:-7.75},.85],['tube-panel',{x:-20.85,y:1.25,z:-1},.85],['chess-panel',{x:10,y:1.15,z:-13.3},.8],['sweeper-panel',{x:-35,y:1.2,z:-15.7},.8],['scope-panel',{x:40.1,y:1.2,z:-10},.85],['scif-panel',{x:-20.9,y:1.6,z:-1},.95]])diegetic.add(id,()=>a,w);
 
 // ---------- peers ----------
@@ -177,7 +193,7 @@ function updateSenses(players,now){
 // ---------- input ----------
 addEventListener('keydown',event=>{
  if(event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement)return;
- if(event.code==='Escape'){event.preventDefault();if(blockers().length){for(const p of blockers())p.close();return;}if(getMode()==='shift')setPause($('pause').hidden);else if(getMode()==='howto')showHome();return;}
+ if(event.code==='Escape'){event.preventDefault();if(machines.active){machines.close();return;}if(blockers().length){for(const p of blockers())p.close();return;}if(getMode()==='shift')setPause($('pause').hidden);else if(getMode()==='howto')showHome();return;}
  if(getMode()!=='shift'||panelOpen())return;
  if(event.code==='Space'){event.preventDefault();if(!event.repeat)beatPress();if(me.state!=='dead')return;}
  if(event.code==='Tab')return;
@@ -261,10 +277,15 @@ function interaction(){
  }
  const sab=nearSabotage(p);
  if(sab){
+  const armed=S.armed?.find(a=>a.id===sab.id);
+  if(armed)return {key:'KeyE',label:`HOLD E / STOP IT! ${sab.label} (${Math.ceil(armed.left)}S)`,hold:{kind:'defuse',target:sab.id}};
   const broken=sab.id==='valve'?S.valve:sab.id==='breaker'?S.blackout:sab.id==='doors'?S.sealed:S.cut?.includes(sab.camera);
   if(broken&&sab.fixHold)return {key:'KeyE',label:`HOLD E / REPAIR ${sab.label}`,hold:{kind:'fix',target:sab.id}};
-  if(me.role==='saboteur'&&!broken)return {key:'KeyE',label:(me.sabotage||0)>0?`${sab.label} / HANDS SHAKING ${Math.ceil(me.sabotage)}S`:`HOLD E / SABOTAGE ${sab.label}`,hold:(me.sabotage||0)>0?null:{kind:'sab',target:sab.id}};
+  if(me.role==='saboteur'&&!broken)return {key:'KeyE',label:(me.sabotage||0)>0?`${sab.label} / HANDS SHAKING ${Math.ceil(me.sabotage)}S`:`E / SABOTAGE ${sab.label}`,press:(me.sabotage||0)>0?()=>note('NOT YET'):()=>{freeMouse();send({t:'sabStart',id:sab.id});machines.open('rig',sab.id,sabPuzzle(sab.id,S.seed));}};
  }
+ const mach=nearMachine(p);
+ if(mach){const st=S.machines?.[mach.id];if(st&&st.wait>0)return {key:'KeyE',label:`${mach.label} / SERVICED, READY IN ${Math.ceil(st.wait)}S`,press:()=>note('ALREADY SERVICED')};
+  if(st)return {key:'KeyE',label:`E / WORK THE ${mach.label}`,press:()=>{freeMouse();machines.open('machine',mach.id,puzzle(mach.kind,machineSeed(S.seed,mach.id,st.cycle)));}};}
  if(cameraOpened&&nearStation(p,SCIF_DESK,1.6))return {key:'KeyE',label:'E / SCIF CONSOLE',press:()=>{freeMouse();scif.open();}};
  if(p.y< -1&&nearStation(p,SERVICE_LADDER,1.6))return {key:'KeyE',label:'E / CLIMB LADDER',press:()=>send({t:'climb'})};
  if(nearStation(p,CAMERA_PANEL))return {key:'KeyE',label:'E / ACCESS PANEL',press:()=>{freeMouse();facilityPanels.openAccess(cameraPuzzle,cameraOpened);}};
@@ -335,6 +356,8 @@ function onMessage(m){
   if(m.ok)setTimeout(()=>{chess.close();sweeper.close();scope.close();},1200);
   return;
  }
+ if(m.t==='machineResult'){if(m.ok){audio.cue(m.id==='phone'?'ring':'steam');audio.cue('success');setTimeout(()=>machines.close(),m.id==='phone'?1600:900);}else{audio.cue(m.id==='phone'?'busy':'reject');machines.fail(m.reason);setTimeout(()=>{const a=machines.active;if(a&&S){const st=S.machines?.[a.id];const def=MACHINES.find(d=>d.id===a.id);if(def&&st)machines.open('machine',a.id,puzzle(def.kind,machineSeed(S.seed,a.id,st.cycle)));}},900);}return;}
+ if(m.t==='sabResult'){if(m.ok){audio.cue('success');setTimeout(()=>machines.close(),700);}else{machines.fail(m.reason);}return;}
  if(m.t==='toolResult'){toolMessage(m);if(m.pending){toolPending=m.pending;toolSent=false;}else if(m.finished){toolPending=null;toolSent=false;}return;}
  if(m.relay){relayState=m.relay;relay.update(relayState);if(m.t==='relayResult')audio.cue(m.ok?'success':'reject');return;}
  if(m.t==='cameraResult'){audio.cue(m.reason.includes('GRANTED')?'success':'reject');facilityPanels.result(m.reason);return;}
@@ -400,6 +423,7 @@ function loop(now){
   camera.rotation.set(pitch,yaw,0);
   const fov=spec?84:72;if(camera.fov!==fov){camera.fov=fov;camera.updateProjectionMatrix();}
   diegetic.update(dt,camera,camera.position);
+  if(machines.active){const a=machines.active,def=MACHINES.find(d=>d.id===a.id);const far=def?nearMachine(position,1.9)?.id!==def.id:!nearSabotage(position,2);if((far&&!window.__noRange)||me.state!=='ok')machines.close();}
  }else{
   // Menus: a slow drift through the bunker behind the screen.
   const t=(now/1000*.006)%1,p=tour.getPointAt(t),q=tour.getPointAt((t+.01)%1);
@@ -437,6 +461,7 @@ function loop(now){
  const st=S||{temp:START_TEMP,pressure:20,blackout:false,cut:[],valve:false,sealed:false};
  const temp=st.temp,pressure=st.pressure,blackout=!!st.blackout;
  bunker.facility.setState(st);bunker.stations.update(now,st);
+ if(inShift)machines.update(dt,now,st);
  const specimen=inShift||mode==='over'?st.specimen:null;
  specimenView.update(specimen,{dt,now,self:spec,surge:st.surge});specimenView.mist(st.mist,now);
  updatePeers(inShift||mode==='over'?st.players:[],dt,now);updateSenses(st.players,now);
@@ -457,6 +482,7 @@ function loop(now){
   $('role').textContent=me.state==='dead'?'GHOST':{crew:'ENGINEER',saboteur:'SABOTEUR',specimen:'SPECIMEN-09'}[me.role]||'';
   $('radio-line').textContent=me.role&&!spec?`LINE ${me.line} / ${me.callsign}`:'';
   $('event').textContent=st.event||'';
+  const warns=(st.armed||[]);$('warning').hidden=!warns.length||spec;if(warns.length){const w=warns[0];const lab=(SABOTAGE_LABELS[w.id]||w.id).toUpperCase();$('warning').textContent=`⚠ SABOTAGE IN PROGRESS / ${lab} / ${Math.ceil(w.left)}S / GET THERE, HOLD E`;}
   renderObjectives(st,me,held?.kind==='wrench');
   $('spec-hud').hidden=!spec;if(spec)renderSpecimen(me,me.mutations);
   $('hint').textContent=spec?'WASD MOVE / MOUSE LOOK / CLICK OR F LUNGE / E SAFES, VENTS, LIFT / TAB MAP':me.state==='dead'?'GHOST / WASD DRIFT / SPACE UP / SHIFT DOWN':'WASD MOVE / CLICK + MOUSE LOOK / E USE / F SHOVE / T TAPE / TAB MAP / ESC MENU';
@@ -481,4 +507,4 @@ function loop(now){
 showHome();
 requestAnimationFrame(loop);
 // Debug handle for automated playtests.
-window.__rc={position,get yaw(){return yaw;},set yaw(v){yaw=v;},get pitch(){return pitch;},set pitch(v){pitch=v;},get state(){return S;},get me(){return me;},join,send,setMode};
+window.__rc={camera,get machines(){return machines;},puzzle,sabPuzzle,machineSeed,position,get yaw(){return yaw;},set yaw(v){yaw=v;},get pitch(){return pitch;},set pitch(v){pitch=v;},get state(){return S;},get me(){return me;},join,send,setMode};

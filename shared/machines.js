@@ -6,10 +6,10 @@ const pick=(r,a)=>a[Math.floor(r()*a.length)];
 export const MACHINES=[
  {id:'manifold',kind:'valves',label:'PUMP MANIFOLD',anchor:{x:-5.3,y:1.35,z:-12.85},face:{x:-1,z:0},effect:{pressure:-8,temp:-3},cooldown:70},
  {id:'phone',kind:'phone',label:'DUTY TELEPHONE',anchor:{x:4.4,y:.92,z:2.85},face:{x:-1,z:0},effect:{temp:-4},cooldown:60},
- {id:'radio',kind:'radio',label:'SHORTWAVE RADIO',anchor:{x:39.35,y:.95,z:7.4},face:{x:-1,z:0},effect:{temp:-2,pin:true},cooldown:80},
- {id:'centrifuge',kind:'centrifuge',label:'SAMPLE CENTRIFUGE',anchor:{x:5.45,y:1.05,z:-12.75},face:{x:1,z:0},effect:{temp:-3},cooldown:65},
+ {id:'radio',kind:'radio',label:'SHORTWAVE RADIO',anchor:{x:37.95,y:.8,z:6.05},face:{x:-1,z:0},effect:{temp:-2,pin:true},cooldown:80},
+ {id:'centrifuge',kind:'centrifuge',label:'SAMPLE CENTRIFUGE',anchor:{x:5.4,y:.9,z:-12.75},face:{x:1,z:0},effect:{temp:-3},cooldown:65},
  {id:'lathe',kind:'lathe',label:'LATHE / VALVE STEM',anchor:{x:-7.4,y:1.15,z:-4.0},face:{x:0,z:1},effect:{pressure:-6},cooldown:70},
- {id:'synchro',kind:'synchro',label:'GENERATOR SYNC',anchor:{x:31.75,y:1.0,z:-11.7},face:{x:1,z:0},effect:{temp:-4},cooldown:75},
+ {id:'synchro',kind:'synchro',label:'GENERATOR SYNC',anchor:{x:31.6,y:.79,z:-11.95},face:{x:1,z:0},effect:{temp:-4},cooldown:75},
  {id:'rods',kind:'rods',label:'CONTROL RODS',anchor:{x:-5.6,y:1.25,z:-17.1},face:{x:0,z:-1},effect:{temp:-7},cooldown:90},
  {id:'fuel',kind:'fuel',label:'BURAN FUEL TRANSFER',anchor:{x:55.2,y:-6.8,z:28},face:{x:-1,z:0},floor:-8,effect:{pressure:-6,temp:-2},cooldown:75},
 ];

@@ -31,7 +31,7 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
  // ---------- crew machines ----------
  const builders={
   valves(def){
-   const g=new THREE.Group();box(2.1,1.3,.08,M.olive,0,0,-.04,g);label('ГЛАВНЫЙ КОЛЛЕКТОР / MAIN MANIFOLD',1.6,.1).position.set(0,.56,.01);g.children.at(-1)||0;
+   const g=new THREE.Group();box(2.1,1.3,.08,M.olive,0,0,-.04,g);
    g.add(label('ГЛАВНЫЙ КОЛЛЕКТОР / MAIN MANIFOLD',1.6,.1));g.children.at(-1).position.set(0,.56,.01);
    const wheels=[],gauges=[];
    for(let i=0;i<3;i++){const x=(i-1)*.62;const pipe=cyl(.06,.06,1.2,M.steel,8);pipe.position.set(x,-.05,.08);g.add(pipe);
@@ -83,8 +83,8 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
     hint:'BIG KNOB SWEEPS THE BAND, SMALL KNOB FINE-TUNES. WATCH THE SIGNAL NEEDLE. THE FREQUENCY IS ON THE BARRACKS CALENDAR.'};
   },
   centrifuge(def){
-   const g=new THREE.Group();const tub=cyl(.22,.24,.22,M.cream,20);tub.position.y=.11;g.add(tub);const rotor=new THREE.Group();rotor.position.y=.23;g.add(rotor);
-   const plate=cyl(.18,.18,.02,M.steel,20);rotor.add(plate);const slots=[],tubes=[];
+   const g=new THREE.Group();const tub=cyl(.22,.24,.22,mat(0x55705a),20);tub.position.y=.11;g.add(tub);const rotor=new THREE.Group();rotor.position.y=.23;g.add(rotor);
+   const plate=cyl(.18,.18,.02,mat(0xb8bca8),20);rotor.add(plate);const slots=[],tubes=[];
    for(let i=0;i<8;i++){const a=i*TAU/8;const s=cyl(.028,.028,.025,M.dark,8);s.position.set(Math.cos(a)*.13,.01,Math.sin(a)*.13);rotor.add(s);slots.push(s);const t=cyl(.018,.018,.12,mat(0xc8d4b0),8);t.position.set(Math.cos(a)*.13,.06,Math.sin(a)*.13);t.visible=false;rotor.add(t);tubes.push(t);}
    const crack=box(.05,.005,.01,M.red);rotor.add(crack);
    const speed=knob(.035);speed.position.set(.2,.1,.2);speed.rotation.y=.4;g.add(speed);const readout=screen(.16,.08,96,48);readout.mesh.position.set(-.12,.1,.245);g.add(readout.mesh);
@@ -127,7 +127,7 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
   rods(def){
    const g=new THREE.Group();box(.8,.08,.5,M.dark,0,0,0,g);const levers=[],bars=[];
    for(let i=0;i<2;i++){const x=(i?.2:-.2);const piv=new THREE.Group();piv.position.set(x,.05,0);g.add(piv);const arm=box(.04,.45,.04,M.steel,0,.22,0);piv.add(arm);const grip=cyl(.04,.04,.1,M.red,8);grip.position.y=.46;piv.add(grip);levers.push({piv,grip});
-    const s=screen(.12,.3,48,120);s.mesh.position.set(x*2.1,.25,-.24);g.add(s.mesh);bars.push(s);}
+    const s=screen(.12,.3,48,120);s.mesh.position.set(x*1.9,.2,.2);g.add(s.mesh);bars.push(s);box(.15,.34,.03,M.dark,x*1.9,.2,.18,g);}
    const st={v:[.9,.9],hold:0,done:false};let p;
    return {g,load(q){p=q;st.v=[.9,.9];st.hold=0;st.done=false;},
     parts:levers.map((l,i)=>({mesh:l.grip,type:'lever',drag:d=>{st.v[i]=Math.max(0,Math.min(1,st.v[i]-d));}})),
@@ -172,7 +172,7 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
  });
  rigAt('doors',stationOf('doors'),()=>{
   const g=new THREE.Group();box(.5,.3,.06,M.dark,-.32,0,-.02,g);const dials=[];for(let i=0;i<3;i++){const k=knob(.05,M.cream);k.position.set(-.48+i*.16,0,.04);g.add(k);dials.push(k);}
-  const pull=new THREE.Group();pull.position.set(.05,-.1,.05);g.add(pull);const grip=box(.04,.3,.04,M.red,0,.15,0);pull.add(grip);
+  const pull=new THREE.Group();pull.position.set(.08,-.12,.06);g.add(pull);const grip=box(.07,.36,.07,M.red,0,.18,0);pull.add(grip);const ball=cyl(.06,.06,.12,M.bakelite,8);ball.position.y=.38;pull.add(ball);g.add(label('ПЕРЕКРЫТИЕ / OVERRIDE',.5,.07));g.children.at(-1).position.set(-.32,.2,.01);
   const st={code:[0,0,0],acc:[0,0,0],pull:0,done:false};
   return {g,load(){st.code=[0,0,0];st.acc=[0,0,0];st.pull=0;st.done=false;},
    parts:[...dials.map((k,i)=>({mesh:k,type:'wheel',drag:d=>{st.acc[i]+=d*10;const n=((Math.round(st.acc[i])%10)+10)%10;if(n!==st.code[i]){st.code[i]=n;onSound('tick');}}})),
@@ -228,8 +228,8 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
    if(!active)return false;
    if(active.m.status)hint.querySelector('small').textContent=active.m.status();
    const def=active.m.def,anchor=def?def.anchor:active.m.anchor,face=def?def.face:active.m.face;
-   const close=def?{phone:.55,radio:.75,centrifuge:.65,lathe:.85,synchro:.8,rods:1.1,valves:1.9,fuel:1.7}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
-   const up=def?{phone:.45,radio:.15,centrifuge:.45,rods:.5}[def.kind]??.05:0;
+   const close=def?{phone:.55,radio:.55,centrifuge:.65,lathe:.85,synchro:.8,rods:1.0,valves:1.45,fuel:1.6}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
+   const up=def?{phone:.45,radio:.35,centrifuge:.45,rods:.45,synchro:.15,valves:.05}[def.kind]??.05:0;
    tmp.set(anchor.x+face.x*close,anchor.y+up+(def?.kind==='phone'?.0:0),anchor.z+face.z*close);
    look.lookAt(tmp,new THREE.Vector3(anchor.x,anchor.y+(def?.kind==='rods'?.25:0),anchor.z),camera.up);goalQ.setFromRotationMatrix(look);
    blend=Math.min(1,blend+dt*3.5);const k=1-Math.pow(1-blend,3);camera.position.lerpVectors(from.pos,tmp,k);camera.quaternion.slerpQuaternions(from.quat,goalQ,k);

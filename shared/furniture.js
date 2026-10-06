@@ -30,7 +30,7 @@ export const FURNITURE=[
  // CONTROL: two operators' desks off the door-to-door diagonals, a portrait, a radiator and the room's coat rack.
  {room:'control',kind:'desk',x:-4.54,z:-2.5,r:1,top:['typewriter','papers','ashtray','phone']},
  {room:'control',kind:'chair',x:-3.8,z:-2.45,r:3},
- {room:'control',kind:'desk',x:4.54,z:3.3,r:3,top:['lamp','phone','papers','carafe','binder']},
+ {room:'control',kind:'desk',x:4.54,z:3.3,r:3,top:['lamp','papers','binder']},
  {room:'control',kind:'chair',x:3.78,z:3.25,r:1},
  {room:'control',kind:'basket',x:3.95,z:2.4},
  {room:'control',kind:'clock',x:-4.89,z:-2.5,y:2.25,r:1},

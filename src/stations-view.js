@@ -46,7 +46,7 @@ export function buildStations(scene){
   const led=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.04),ledOn);led.position.set(.07,.06,.32);head.add(led);
   const arm=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.35,5),steel);arm.position.y=.2;g.add(arm);
   const w=wallward(c.box.x,c.box.z),bx=c.box.x+w.dx*(w.d-.12),bz=c.box.z+w.dz*(w.d-.12);
-  add(new THREE.BoxGeometry(.32,.42,.32),grey,bx,1.3,bz);add(new THREE.BoxGeometry(.06,1.8,.06),dark,bx,2.4,bz);
+  add(new THREE.BoxGeometry(.06,1.8,.06),dark,bx,2.1,bz);// the junction box itself is the sabotage rig in machines.js
   const tag=add(new THREE.BoxGeometry(.12,.08,.02),amber,bx-w.dz*.0,1.6,bz);void tag;
   marker(c.box.x,c.box.z,0,1.75);
   cams.set(c.id,{head,led,rest:head.quaternion.clone()});
@@ -57,10 +57,10 @@ export function buildStations(scene){
  const wheel=new THREE.Mesh(new THREE.TorusGeometry(.32,.04,5,12),new THREE.MeshLambertMaterial({color:0x8e2d1f}));valve.add(wheel);
  for(let i=0;i<3;i++){const spoke=new THREE.Mesh(new THREE.BoxGeometry(.6,.04,.04),steel);spoke.rotation.z=i*Math.PI/3;wheel.add(spoke);}
  const redTag=new THREE.Mesh(new THREE.BoxGeometry(.12,.2,.01),new THREE.MeshBasicMaterial({color:0xb3352a}));redTag.position.set(.25,-.3,.05);valve.add(redTag);
- marker(valveStation.x,valveStation.z);
+ marker(valveStation.x,valveStation.z);valve.visible=false;// the interactive rig in machines.js replaces this wheel
  const breaker=SABOTAGE.find(s=>s.id==='breaker');marker(breaker.x,breaker.z);
  const lever=SABOTAGE.find(s=>s.id==='doors'),lw=wallward(lever.x,lever.z);
- const leverArm=add(new THREE.BoxGeometry(.06,.5,.06),new THREE.MeshLambertMaterial({color:0xb3352a}),lever.x+lw.dx*(lw.d-.1),1.3,lever.z+lw.dz*(lw.d-.1));leverArm.userData.dynamic=true;
+ const leverArm=add(new THREE.BoxGeometry(.06,.5,.06),new THREE.MeshLambertMaterial({color:0xb3352a}),lever.x+lw.dx*(lw.d-.1),1.3,lever.z+lw.dz*(lw.d-.1));leverArm.userData.dynamic=true;leverArm.visible=false;
  add(new THREE.BoxGeometry(.4,.5,.12),dark,lever.x+lw.dx*(lw.d-.03),1.3,lever.z+lw.dz*(lw.d-.03));marker(lever.x,lever.z);
  // Tunnel blast doors drop from the ceiling when sealed.
  const doors=[{x:15.45,z:-2.5},{x:-15.45,z:-10.5}].map(p=>{const d=add(new THREE.BoxGeometry(.3,2.8,3),new THREE.MeshLambertMaterial({color:0x5a5e4b}),p.x,4.3,p.z);for(let i=0;i<4;i++){const s=new THREE.Mesh(new THREE.BoxGeometry(.32,.18,3),i%2?paint:dark);s.position.y=-1.2+i*.18;d.add(s);}d.userData.dynamic=true;return d;});
