@@ -21,7 +21,13 @@ function fits(layout,clues){
  for(const [cell,count] of Object.entries(clues.readings)){if(set.has(+cell))return false;if(neighbours(+cell).filter(n=>set.has(n)).length!==count)return false;}
  return true;
 }
+// Generation brute-forces every layout, so each seed is solved once and remembered.
+const sweeperCache=new Map();
 export function sweeperPuzzle(seed){
+ if(sweeperCache.has(seed))return sweeperCache.get(seed);
+ const result=generateSweeper(seed);if(sweeperCache.size>64)sweeperCache.clear();sweeperCache.set(seed,result);return result;
+}
+function generateSweeper(seed){
  const rand=rng('grid/'+seed);
  const cells=[...Array(GRID*GRID).keys()];for(let i=cells.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[cells[i],cells[j]]=[cells[j],cells[i]];}
  const hot=cells.slice(0,HOT).sort((a,b)=>a-b),hotSet=new Set(hot);

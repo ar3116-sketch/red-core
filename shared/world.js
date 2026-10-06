@@ -117,17 +117,33 @@ const SURFACES=[
  {minX:21,maxX:23,minZ:-13,maxZ:-10.5,y:0},
  {minX:18.5,maxX:21,minZ:-13,maxZ:-10.5,y:-2.4},
  {minX:-15,maxX:15,minZ:-15,maxZ:5,y:0},...WING_SURFACES,...HANGAR_SURFACES,...SEWER_SURFACES];
+// Spatial index: collision checks only look at boxes in nearby 2 m cells instead of every box
+// in the bunker. Each static list (SOLIDS variants, SURFACES) gets its own grid, built once.
+const CELL=2,grids=new WeakMap();let stamp=0;
+function gridFor(list){
+ let g=grids.get(list);if(g)return g;g=new Map();
+ for(const b of list){
+  const minX=b.radius?b.x-b.radius:b.minX,maxX=b.radius?b.x+b.radius:b.maxX,minZ=b.radius?b.z-b.radius:b.minZ,maxZ=b.radius?b.z+b.radius:b.maxZ;
+  for(let ix=Math.floor(minX/CELL);ix<=Math.floor(maxX/CELL);ix++)for(let iz=Math.floor(minZ/CELL);iz<=Math.floor(maxZ/CELL);iz++){const k=ix*4096+iz;let a=g.get(k);if(!a)g.set(k,a=[]);a.push(b);}
+ }
+ grids.set(list,g);return g;
+}
+export function near(list,x,z,r=0){
+ const g=gridFor(list),out=[],q=++stamp;
+ for(let ix=Math.floor((x-r)/CELL);ix<=Math.floor((x+r)/CELL);ix++)for(let iz=Math.floor((z-r)/CELL);iz<=Math.floor((z+r)/CELL);iz++){const a=g.get(ix*4096+iz);if(a)for(const b of a)if(b._q!==q){b._q=q;out.push(b);}}
+ return out;
+}
 export function groundHeight(x,z,previousY=0,maxStep=.22) {
- const levels=SURFACES.filter(s=>onSurface(s,x,z)).map(s=>surfaceY(s,z)).filter(y=>Math.abs(y-previousY)<=maxStep+1e-8);
+ const levels=near(SURFACES,x,z).filter(s=>onSurface(s,x,z)).map(s=>surfaceY(s,z)).filter(y=>Math.abs(y-previousY)<=maxStep+1e-8);
  return levels.length?Math.max(...levels):null;
 }
-function floorBelow(x,z,y){const levels=SURFACES.filter(s=>onSurface(s,x,z)).map(s=>surfaceY(s,z)).filter(h=>h<=y+.22);return levels.length?Math.max(...levels):null;}
+function floorBelow(x,z,y){const levels=near(SURFACES,x,z).filter(s=>onSurface(s,x,z)).map(s=>surfaceY(s,z)).filter(h=>h<=y+.22);return levels.length?Math.max(...levels):null;}
 const solidAt=(box,y)=>y+1.8>(box.minY??-.15)+.001&&y<(box.maxY??3.5)-.001;
 export function isWalkable(x,z,solids=SOLIDS,radius=PLAYER_RADIUS,y=groundHeight(x,z,0,Infinity),airborne=false) {
  return y!==null&&Number.isFinite(x)&&Number.isFinite(z)&&x>=ROOM_BOUNDS.minX+radius-1e-9&&x<=ROOM_BOUNDS.maxX-radius+1e-9&&z>=ROOM_BOUNDS.minZ+radius-1e-9&&z<=ROOM_BOUNDS.maxZ-radius+1e-9
-  &&(airborne?floorBelow(x,z,y)!==null:SURFACES.some(s=>onSurface(s,x,z)&&Math.abs(surfaceY(s,z)-y)<.03))
-  &&!SURFACES.some(s=>onSurface(s,x,z)&&surfaceY(s,z)>y+.22&&surfaceY(s,z)<y+1.9)
-  &&!solids.some(b=>solidAt(b,y)&&overlapsSolid(x,z,b,radius));
+  &&(airborne?floorBelow(x,z,y)!==null:near(SURFACES,x,z).some(s=>onSurface(s,x,z)&&Math.abs(surfaceY(s,z)-y)<.03))
+  &&!near(SURFACES,x,z).some(s=>onSurface(s,x,z)&&surfaceY(s,z)>y+.22&&surfaceY(s,z)<y+1.9)
+  &&!near(solids,x,z,radius).some(b=>solidAt(b,y)&&overlapsSolid(x,z,b,radius));
 }
 function bound(point,radius) {
   point.x=clamp(point.x,ROOM_BOUNDS.minX+radius,ROOM_BOUNDS.maxX-radius);
@@ -137,7 +153,7 @@ function recover(point,solids,radius) {
   // Recover saved/network positions that were inside a prop before collisions existed.
   for(let pass=0;pass<16;pass++) {
     bound(point,radius);let changed=false;
-    for(const b of solids) {
+    for(const b of near(solids,point.x,point.z,radius+.6)) {
       if(!solidAt(b,point.y)||!overlapsSolid(point.x,point.z,b,radius))continue;
       if(b.radius){const dx=point.x-b.x,dz=point.z-b.z,length=Math.hypot(dx,dz);point.x=b.x+(length?dx/length:1)*(b.radius+radius+1e-6);point.z=b.z+(length?dz/length:0)*(b.radius+radius+1e-6);changed=true;continue;}
       const nearX=clamp(point.x,b.minX,b.maxX),nearZ=clamp(point.z,b.minZ,b.maxZ);
