@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {MACHINES,puzzle,sabPuzzle,machineSeed} from '../shared/machines.js';
+import {MACHINES,puzzle,sabPuzzle,machineSeed,crossings} from '../shared/machines.js';
 import {SABOTAGE,CAMERAS} from '../shared/stations.js';
 import {isWalkable,SOLIDS} from '../shared/world.js';
 
@@ -30,6 +30,40 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
  const place=(group,anchor,face)=>{group.position.set(anchor.x,anchor.y,anchor.z);group.rotation.y=Math.atan2(face.x,face.z);scene.add(group);group.userData.dynamic=true;};
  // ---------- crew machines ----------
  const builders={
+  harness(def){
+   // A junction cabinet beside the reactor console: pegs on a board, cables sagging between them.
+   const g=new THREE.Group();box(1.05,1.9,.3,M.olive,0,-.1,-.2,g);
+   const boardTex=screen(.98,.62,196,124);boardTex.draw((c,W,H)=>{c.fillStyle='#3b3f31';c.fillRect(0,0,W,H);c.fillStyle='#22251c';for(let y=6;y<H;y+=10)for(let x=6;x<W;x+=10)c.fillRect(x,y,2,2);c.fillStyle='#d6a14e';c.font='bold 8px monospace';c.fillText('ЖГУТ / HARNESS / NO CROSSED LINES',6,H-4);});
+   boardTex.mesh.material=new THREE.MeshLambertMaterial({map:boardTex.mesh.material.map});g.add(boardTex.mesh);
+   g.add(label('ВСПОМОГАТЕЛЬНАЯ ЦЕПЬ / AUX CIRCUIT',.9,.07));g.children.at(-1).position.set(0,.38,.01);
+   const pegs=[],cables=[],colours=[0xc9a032,0x9a2e22,0x2f4f2f,0x2a2a2a,0xd8d5c4,0x3a5a7a,0x7a4a2a,0xa06a3a,0x5a6a3a,0x8a7a6a];
+   const red=new THREE.MeshLambertMaterial({color:0xd03a22,emissive:0x5a0a00});
+   const st={pos:[],done:false,hold:0,dirty:true};let p;
+   const plane=new THREE.Plane(),tmpM=new THREE.Matrix4();
+   function rebuild(){
+    for(const c of cables){g.remove(c.mesh);c.mesh.geometry.dispose();}cables.length=0;
+    const bad=crossings(p.edges,st.pos);
+    p.edges.forEach(([a,b],i)=>{
+     const A=new THREE.Vector3(st.pos[a][0],st.pos[a][1],.05),B=new THREE.Vector3(st.pos[b][0],st.pos[b][1],.05);
+     const mid=A.clone().add(B).multiplyScalar(.5);mid.y-=.04+A.distanceTo(B)*.12;mid.z+=.05+i*.006;
+     const curve=new THREE.CatmullRomCurve3([A,mid,B]);const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,14,.011,5,false),bad.has(i)?red:mat(colours[i%colours.length]));g.add(mesh);cables.push({mesh});
+    });
+    st.crossed=bad.size;st.dirty=false;
+   }
+   for(let i=0;i<7;i++){const peg=new THREE.Group();g.add(peg);const post=cyl(.022,.022,.07,M.brass,8);post.rotation.x=Math.PI/2;post.position.z=.035;peg.add(post);const cap=cyl(.034,.034,.03,M.bakelite,10);cap.rotation.x=Math.PI/2;cap.position.z=.075;peg.add(cap);pegs.push(peg);}
+   return {g,load(q){p=q;st.pos=q.start.map(v=>v.slice());st.done=false;st.hold=0;st.dirty=true;},
+    parts:pegs.map((peg,i)=>({mesh:peg,type:'plane',
+     down:()=>{g.updateMatrixWorld();const n=new THREE.Vector3(0,0,1).transformDirection(g.matrixWorld);const o=new THREE.Vector3(0,0,.05).applyMatrix4(g.matrixWorld);plane.setFromNormalAndCoplanarPoint(n,o);onSound('cable');return true;},
+     move:ray=>{const hitP=new THREE.Vector3();if(!ray.intersectPlane(plane,hitP))return;tmpM.copy(g.matrixWorld).invert();hitP.applyMatrix4(tmpM);
+      st.pos[i]=[Math.max(-.44,Math.min(.44,hitP.x)),Math.max(-.27,Math.min(.27,hitP.y))];st.dirty=true;},
+     up:()=>onSound('peg')})),
+    update(dt){if(!p)return;if(st.dirty)rebuild();pegs.forEach((peg,i)=>peg.position.set(st.pos[i][0],st.pos[i][1],0));
+     st.hold=st.crossed===0?st.hold+dt:0;if(st.crossed>0&&Math.random()<dt*3)onSound('buzz');
+     if(st.hold>.8&&!st.done){st.done=true;onAnswer({pos:st.pos.map(v=>[+v[0].toFixed(3),+v[1].toFixed(3)])});}},
+    status(){return st.crossed?`${st.crossed} CABLES CROSSING`:'CLEAR / CLOSING CIRCUIT';},
+    fail(){st.done=false;st.hold=0;},
+    hint:'DRAG THE PEGS TO UNTANGLE THE HARNESS. NO CABLE MAY CROSS ANOTHER: CROSSED CABLES GLOW RED. WHEN NONE CROSS, THE CIRCUIT CLOSES.'};
+  },
   valves(def){
    const g=new THREE.Group();box(2.1,1.3,.08,M.olive,0,0,-.04,g);
    g.add(label('ГЛАВНЫЙ КОЛЛЕКТОР / MAIN MANIFOLD',1.6,.1));g.children.at(-1).position.set(0,.56,.01);
@@ -205,9 +239,11 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
   if(part.type==='click'){part.click();return;}
   const c=screenPos(part.mesh);lastAngle=Math.atan2(e.clientY-c.y,e.clientX-c.x);lastY=e.clientY;
   if(part.type==='dial'){const local=Math.atan2(-(e.clientY-c.y),e.clientX-c.x);if(part.down&&!part.down(local))return;}
+  else if(part.type==='plane'){part.down();}
   else part.down?.();
   dragPart=part;canvas.setPointerCapture(e.pointerId);},true);
  canvas.addEventListener('pointermove',e=>{if(!active||!dragPart)return;e.stopPropagation();
+  if(dragPart.type==='plane'){const r=canvas.getBoundingClientRect();ndc.set(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);ray.setFromCamera(ndc,camera);dragPart.move(ray.ray);return;}
   if(dragPart.type==='lever'){const d=(e.clientY-lastY)/160;lastY=e.clientY;dragPart.drag(d);return;}
   const c=screenPos(dragPart.mesh),a=Math.atan2(e.clientY-c.y,e.clientX-c.x);let d=a-lastAngle;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;lastAngle=a;dragPart.drag(d/TAU);},true);
  const release=()=>{if(dragPart){dragPart.up?.();dragPart=null;}};
@@ -228,7 +264,7 @@ export function createMachines(scene,{camera,canvas,onAnswer,onSabAnswer,onSound
    if(!active)return false;
    if(active.m.status)hint.querySelector('small').textContent=active.m.status();
    const def=active.m.def,anchor=def?def.anchor:active.m.anchor,face=def?def.face:active.m.face;
-   const close=def?{phone:.55,radio:.55,centrifuge:.65,lathe:.85,synchro:.8,rods:1.0,valves:1.45,fuel:1.6}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
+   const close=def?{harness:1.05,phone:.55,radio:.55,centrifuge:.65,lathe:.85,synchro:.8,rods:1.0,valves:1.45,fuel:1.6}[def.kind]:active.id.startsWith('coax')?.6:active.id==='valve'?1.2:.9;
    const up=def?{phone:.45,radio:.35,centrifuge:.45,rods:.45,synchro:.15,valves:.05}[def.kind]??.05:0;
    tmp.set(anchor.x+face.x*close,anchor.y+up+(def?.kind==='phone'?.0:0),anchor.z+face.z*close);
    look.lookAt(tmp,new THREE.Vector3(anchor.x,anchor.y+(def?.kind==='rods'?.25:0),anchor.z),camera.up);goalQ.setFromRotationMatrix(look);

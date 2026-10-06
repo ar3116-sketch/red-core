@@ -292,7 +292,6 @@ function interaction(){
  if(nearStation(p,INCINERATOR))return {key:'KeyE',label:'E / PURGE FILTERS',press:()=>{freeMouse();facilityPanels.openBurn();}};
  if(cameraOpened&&nearStation(p,TUBE_RACK))return {key:'KeyE',label:'E / SEAT VACUUM TUBES',press:()=>{freeMouse();tubes.open();}};
  if(atCoolantStation(p))return {key:'KeyE',label:'E / BALANCE COOLANT',press:()=>{freeMouse();coolant.open();}};
- if(Math.abs(p.y)<.8&&Math.hypot(p.x-CONSOLE_POSITION.x,p.z-CONSOLE_POSITION.z)<=ACTION_RANGE)return {key:'KeyE',label:'E / SERVICE REACTOR CIRCUITS',press:()=>{freeMouse();firstPerson.interact();relay.open(relayState);send({t:'relayOpen'});}};
  const suspect=close(TAPE.range,q=>q.state==='ok');
  if(suspect)return {key:'KeyT',label:'HOLD T / TAPE THEM TO A PIPE (NEEDS TWO)',hold:{kind:'tape',target:suspect.id}};
  return null;
@@ -356,7 +355,7 @@ function onMessage(m){
   if(m.ok)setTimeout(()=>{chess.close();sweeper.close();scope.close();},1200);
   return;
  }
- if(m.t==='machineResult'){if(m.ok){audio.cue(m.id==='phone'?'ring':'steam');audio.cue('success');setTimeout(()=>machines.close(),m.id==='phone'?1600:900);}else{audio.cue(m.id==='phone'?'busy':'reject');machines.fail(m.reason);setTimeout(()=>{const a=machines.active;if(a&&S){const st=S.machines?.[a.id];const def=MACHINES.find(d=>d.id===a.id);if(def&&st)machines.open('machine',a.id,puzzle(def.kind,machineSeed(S.seed,a.id,st.cycle)));}},900);}return;}
+ if(m.t==='machineResult'){if(m.ok){audio.cue(m.id==='phone'?'ring':m.id==='harness'?'peg':'steam');audio.cue('success');setTimeout(()=>machines.close(),m.id==='phone'?1600:900);}else{audio.cue(m.id==='phone'?'busy':'reject');machines.fail(m.reason);setTimeout(()=>{const a=machines.active;if(a&&S){const st=S.machines?.[a.id];const def=MACHINES.find(d=>d.id===a.id);if(def&&st)machines.open('machine',a.id,puzzle(def.kind,machineSeed(S.seed,a.id,st.cycle)));}},900);}return;}
  if(m.t==='sabResult'){if(m.ok){audio.cue('success');setTimeout(()=>machines.close(),700);}else{machines.fail(m.reason);}return;}
  if(m.t==='toolResult'){toolMessage(m);if(m.pending){toolPending=m.pending;toolSent=false;}else if(m.finished){toolPending=null;toolSent=false;}return;}
  if(m.relay){relayState=m.relay;relay.update(relayState);if(m.t==='relayResult')audio.cue(m.ok?'success':'reject');return;}

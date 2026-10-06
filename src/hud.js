@@ -14,7 +14,7 @@ export function renderObjectives(s,me,heldWrench){
  }else if(me.role){
   if(me.role==='saboteur'&&me.override)items.push({text:`HANDLER'S DOOR OVERRIDE: ${me.override.join('-')}`});
   if(me.role==='saboteur')items.push({text:me.sabotage>0?`SABOTAGE READY IN ${Math.ceil(me.sabotage)}S`:'SABOTAGE READY / VALVE, BREAKER, DOORS OR A CAMERA CABLE',urgent:me.sabotage<=0});
-  items.push({text:me.role==='saboteur'?'SERVICE THE REACTOR (YOUR CYCLES ADD HEAT)':'SERVICE THE REACTOR CONSOLE / REACTOR HALL'});
+  items.push({text:me.role==='saboteur'?'UNTANGLE THE REACTOR HARNESS (YOURS ADDS HEAT)':'UNTANGLE THE REACTOR HARNESS / BESIDE THE CONSOLE'});
   const ready=MACHINES.filter(m=>(s.machines?.[m.id]?.wait??1)<=0);if(ready.length)items.push({text:`MACHINES READY: ${ready.slice(0,3).map(m=>m.label).join(', ')}${ready.length>3?` +${ready.length-3}`:''}`});
   if(s.coolant){if(s.coolant.cooldown>0)items.push({text:'COOLANT FLUSH COMPLETE',done:true});else if(s.coolant.filterReady)items.push({text:'BALANCE COOLANT / LOWER BASIN'});else items.push({text:`PURGE FILTERS ${s.coolant.filterProgress}/3 / INCINERATOR`});}
   const edges=Object.entries(s.tools?.jobs||{}).filter(([id,v])=>id.endsWith('-edge')&&v<3).length;

@@ -414,6 +414,8 @@ export default class Room implements Party.Server {
    const r=machineCheck(def.kind,machineSeed(this.seed,def.id,st.cycle),m.answer);
    if(r.ok){
     // A saboteur can work a machine to look busy; it does nothing for the core.
+    if(p.role==='saboteur'&&(def as any).sabEffect){this.temp=Math.min(100,this.temp+(def as any).sabEffect.temp);}
+    if(def.id==='harness')this.lastConsoleCycle={delta:p.role==='saboteur'?(def as any).sabEffect.temp:def.effect.temp,at:now};
     if(p.role==='crew'){const e:any=def.effect;if(e.temp)this.temp=Math.max(0,this.temp+e.temp);if(e.pressure)this.pressure=Math.max(20,this.pressure+e.pressure);if(e.pin)this.send(p.id,{t:'note',text:`RADIO: CAMERA ROOM CODE ${accessPuzzle(this.seed).pin.split('').join(' ')}`});}
     p.stats.tasks++;st.cycle++;st.readyAt=now+def.cooldown*1000;this.event(`${def.label} / SERVICED`);
    }

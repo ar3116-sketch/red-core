@@ -4,6 +4,7 @@ const rng=seed=>{let h=2166136261;for(const c of String(seed))h=Math.imul(h^c.ch
 const pick=(r,a)=>a[Math.floor(r()*a.length)];
 // face: the direction the machine faces (toward the operator). stand: where the operator stands.
 export const MACHINES=[
+ {id:'harness',kind:'harness',label:'REACTOR CABLE HARNESS',anchor:{x:1.4,y:1.05,z:-7.62},face:{x:0,z:1},effect:{temp:-6},sabEffect:{temp:5},cooldown:25},
  {id:'manifold',kind:'valves',label:'PUMP MANIFOLD',anchor:{x:-5.3,y:1.35,z:-12.85},face:{x:-1,z:0},effect:{pressure:-8,temp:-3},cooldown:70},
  {id:'phone',kind:'phone',label:'DUTY TELEPHONE',anchor:{x:4.4,y:.92,z:2.85},face:{x:-1,z:0},effect:{temp:-4},cooldown:60},
  {id:'radio',kind:'radio',label:'SHORTWAVE RADIO',anchor:{x:37.95,y:.8,z:6.05},face:{x:-1,z:0},effect:{temp:-2,pin:true},cooldown:80},
@@ -19,6 +20,7 @@ export const machineSeed=(seed,id,cycle)=>`${seed}/${id}/${cycle}`;
 
 export function puzzle(kind,seed){
  const r=rng(seed);
+ if(kind==='harness')return harness(seed);
  if(kind==='valves'){
   // Three wheels each feed several gauges: turning one moves more than one needle.
   const M=[[2,1,0],[0,2,1],[1,0,2]].map(row=>row.map(v=>v+(r()<.3?1:0)));
@@ -38,8 +40,20 @@ export function puzzle(kind,seed){
  if(kind==='fuel'){const order=[0,1,2];for(let i=2;i>0;i--){const j=Math.floor(r()*(i+1));[order[i],order[j]]=[order[j],order[i]];}return {order,band:Math.round((.35+r()*.3)*100)/100};}
  return {};
 }
+// Harness: a planar graph whose pegs start scrambled so cables cross. Untangle by moving pegs.
+const segX=(a,b,c,d)=>{const o=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);const d1=o(a,b,c),d2=o(a,b,d),d3=o(c,d,a),d4=o(c,d,b);return ((d1>0&&d2<0)||(d1<0&&d2>0))&&((d3>0&&d4<0)||(d3<0&&d4>0));};
+export function crossings(edges,pos){const out=new Set();for(let i=0;i<edges.length;i++)for(let j=i+1;j<edges.length;j++){const [a,b]=edges[i],[c,d]=edges[j];if(a===c||a===d||b===c||b===d)continue;if(segX(pos[a],pos[b],pos[c],pos[d])){out.add(i);out.add(j);}}return out;}
+function harness(seed){
+ const r=rng('harness/'+seed),N=7,pts=Array.from({length:N},()=>[r()*.8-.4,r()*.44-.22]);
+ const pairs=[];for(let i=0;i<N;i++)for(let j=i+1;j<N;j++)pairs.push([i,j,Math.hypot(pts[i][0]-pts[j][0],pts[i][1]-pts[j][1])]);pairs.sort((a,b)=>a[2]-b[2]);
+ const edges=[];for(const [i,j] of pairs){if(edges.length>=10)break;if(edges.every(([a,b])=>a===i||a===j||b===i||b===j||!segX(pts[a],pts[b],pts[i],pts[j])))edges.push([i,j]);}
+ // Scramble onto a ring until plenty of cables cross.
+ let start;for(let k=0;k<40;k++){const order=[...Array(N).keys()];for(let i=N-1;i>0;i--){const j=Math.floor(r()*(i+1));[order[i],order[j]]=[order[j],order[i]];}start=order.map(o=>[Math.cos(o/N*Math.PI*2)*.32,Math.sin(o/N*Math.PI*2)*.18]);if(crossings(edges,start).size>=6)break;}
+ return {edges,start,N};
+}
 export function check(kind,seed,a){
  const p=puzzle(kind,seed);if(!a)return {ok:false,reason:'NOTHING SET'};
+ if(kind==='harness'){const pos=a.pos;if(!Array.isArray(pos)||pos.length!==p.N||pos.some(q=>!Array.isArray(q)||q.some(v=>!Number.isFinite(v)||Math.abs(v)>.5)))return {ok:false,reason:'PEGS OFF THE BOARD'};return crossings(p.edges,pos).size?{ok:false,reason:'CABLES STILL CROSS'}:{ok:true};}
  if(kind==='valves'){const g=p.M.map(row=>row.reduce((s,v,j)=>s+v*(+a.w?.[j]||0),0));const off=Math.max(...g.map((v,i)=>Math.abs(v-p.targets[i])));return off<=.75?{ok:true}:{ok:false,reason:'GAUGES OUT OF BAND'};}
  if(kind==='phone'){return String(a.number)===p.entries[p.callee].num?{ok:true}:{ok:false,reason:'WRONG EXTENSION'};}
  if(kind==='radio')return Math.abs((+a.freq)-p.target)<=.012?{ok:true}:{ok:false,reason:'ONLY STATIC'};
