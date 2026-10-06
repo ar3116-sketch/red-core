@@ -12,7 +12,7 @@ import {TUBE_RACK} from '../shared/tubes.js';
 // Things you can use all share one tell: a small amber lamp and a yellow floor chevron.
 // Plus the physical hardware for vents, cameras, cable boxes, the valve and the tunnel doors.
 export function buildStations(scene){
- const amber=new THREE.MeshBasicMaterial({color:0xd99b44}),paint=new THREE.MeshBasicMaterial({color:0xb38a35});
+ const amber=new THREE.MeshBasicMaterial({color:0xd99b44}),paint=new THREE.MeshBasicMaterial({color:0xb38a35,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-8});
  const steel=new THREE.MeshLambertMaterial({color:0x596153}),dark=new THREE.MeshLambertMaterial({color:0x22281f}),grey=new THREE.MeshLambertMaterial({color:0x6c705f});
  const ledOn=new THREE.MeshBasicMaterial({color:0xd23a22}),ledOff=new THREE.MeshBasicMaterial({color:0x2a1410});
  const add=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);scene.add(m);return m;};

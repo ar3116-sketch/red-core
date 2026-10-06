@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import {WALLS,ROOMS,roomAt,groundHeight,isWalkable,SOLIDS} from '../shared/world.js';
 import {WING_SPACES} from '../shared/wings.js';
 
+// Layered surfaces (floors, rugs, bands, posters) sit millimetres above real geometry. PS1 vertex
+// snapping moves the two by different amounts, so without a depth bias they z-fight in big triangles.
+export const decal=(m,bias=4)=>{m.polygonOffset=true;m.polygonOffsetFactor=-bias;m.polygonOffsetUnits=-bias*2;return m;};
 const rnd=seed=>()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/4294967296);
 function tex(w,h,draw,repeat=[1,1]){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.magFilter=t.minFilter=THREE.NearestFilter;t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(...repeat);return t;}
 const grime=(g,w,h,r,n=60,a=.18)=>{for(let i=0;i<n;i++){g.fillStyle=`rgba(${r()<.5?'20,18,12':'90,70,40'},${a*r()})`;g.fillRect(r()*w,r()*h,1+r()*3,1+r()*6);}};
@@ -67,7 +70,7 @@ function rugTexture(kind){
 
 export function decorate(scene){
  const bandMats={},floorMats={};
- const bandMat=k=>bandMats[k]??=new THREE.MeshLambertMaterial({map:bandTexture(k)});
+ const bandMat=k=>bandMats[k]??=decal(new THREE.MeshLambertMaterial({map:bandTexture(k)}));
  const rail=new THREE.MeshLambertMaterial({color:0x2b2419});
  // Lower-wall band on each face of every full-height wall, styled by the room it faces.
  for(const w of WALLS){
@@ -86,16 +89,16 @@ export function decorate(scene){
  const spaces=[...ROOMS.map(r=>({id:r.id,minX:r.x-5,maxX:r.x+5,minZ:r.z-5,maxZ:r.z+5})),...WING_SPACES,{id:'cameras',minX:-23,maxX:-15,minZ:-5,maxZ:3}];
  for(const s of spaces){
   const style=STYLE[s.id];if(!style?.floor)continue;
-  const mat=floorMats[style.floor]??=new THREE.MeshLambertMaterial({map:floorTexture(style.floor)});
+  const mat=floorMats[style.floor]??=decal(new THREE.MeshLambertMaterial({map:floorTexture(style.floor)}));
   const w=s.maxX-s.minX,d=s.maxZ-s.minZ,plane=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);plane.rotation.x=-Math.PI/2;plane.position.set((s.minX+s.maxX)/2,.012,(s.minZ+s.maxZ)/2);scene.add(plane);
   if(style.rug){
    const map=rugTexture(style.rug),long=w>d,rw=style.rug==='runner'?(long?w*.8:1.6):3.4,rd=style.rug==='runner'?(long?1.6:d*.8):2.4;
-   const rug=new THREE.Mesh(new THREE.BoxGeometry(rw,.02,rd),new THREE.MeshLambertMaterial({map}));if(style.rug==='runner'&&long)rug.rotation.y=Math.PI/2;
+   const rug=new THREE.Mesh(new THREE.BoxGeometry(rw,.02,rd),decal(new THREE.MeshLambertMaterial({map}),8));if(style.rug==='runner'&&long)rug.rotation.y=Math.PI/2;
    rug.position.set((s.minX+s.maxX)/2,.03,(s.minZ+s.maxZ)/2+(s.id==='barracks'?-1.8:0));if(style.rug==='runner'&&long){rug.geometry=new THREE.BoxGeometry(rd,.02,rw);}scene.add(rug);
   }
  }
  // Posters: on wall faces with clear floor in front, away from the ends of each segment.
- const r=rnd(1986),posterMats=POSTERS.map((_,i)=>new THREE.MeshLambertMaterial({map:posterTexture(i,i*91+7)}));
+ const r=rnd(1986),posterMats=POSTERS.map((_,i)=>decal(new THREE.MeshLambertMaterial({map:posterTexture(i,i*91+7)})));
  const perRoom=new Map();let index=0;
  for(const w of WALLS){
   const top=w.maxY??3.5,bottom=w.minY??-.15;if(bottom<-1||top<2.5)continue;
@@ -113,5 +116,5 @@ export function decorate(scene){
  }
  // Control room mural: a cosmonaut in mosaic over the console doorway.
  const mural=tex(96,48,(g,w,h)=>{const rr=rnd(5);for(let y=0;y<h;y+=3)for(let x=0;x<w;x+=3){const dx=x-w*.3,dy=y-h*.5,inHelmet=dx*dx+dy*dy<180,inVisor=dx*dx+dy*dy<70;const sky=y<h*.5;g.fillStyle=inVisor?'#2b2f2a':inHelmet?'#d8d0b0':x>w*.55&&Math.abs(y-h*.3-(x-w*.55)*.4)<4?'#d6a14e':sky?(rr()<.5?'#2a3c5a':'#33486a'):(rr()<.5?'#9b2f24':'#b3352a');g.fillRect(x,y,2,2);}g.fillStyle='#e6d8ad';g.font='bold 7px monospace';g.fillText('СЛАВА ПОКОРИТЕЛЯМ КОСМОСА',4,h-4);});
- const m=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.6*.62),new THREE.MeshLambertMaterial({map:mural}));m.position.set(3.1,2.3,-4.86);scene.add(m);
+ const m=new THREE.Mesh(new THREE.PlaneGeometry(3.2,1.6*.62),decal(new THREE.MeshLambertMaterial({map:mural})));m.position.set(3.1,2.3,-4.86);scene.add(m);
 }

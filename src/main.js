@@ -45,7 +45,7 @@ const canvas=$('c');
 const renderer=new THREE.WebGLRenderer({canvas,antialias:false});
 renderer.setPixelRatio(1);renderer.setSize(320,240,false);
 autoPS1();
-const ps1=createPS1Post(renderer);
+const ps1=createPS1Post(renderer,{snap:.8});
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x080d0a);
 scene.fog=new THREE.Fog(0x080d0a,7,46);
