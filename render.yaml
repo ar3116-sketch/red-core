@@ -1,0 +1,12 @@
+# One free web service: builds the game, then serves it and the rooms from Node.
+services:
+  - type: web
+    name: red-core
+    runtime: node
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build:all
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

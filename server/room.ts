@@ -9,6 +9,7 @@ import {SAFES,nearSafe,checkSweeper,checkScope,publicSweeper} from '../shared/sa
 import {draft,PARTS} from '../shared/evolution.js';
 import {VENTS,ventTravel,nearVent,CAMERAS,SABOTAGE,SAB_COOLDOWN,SCIF_DESK,REACTOR_SMASH,navPath,NAV} from '../shared/stations.js';
 import {LIFT_DOOR} from '../shared/wings.js';
+import {MACHINES,nearMachine,machineSeed,check as machineCheck,sabCheck,sabPuzzle,SAB_ARM_SECONDS} from '../shared/machines.js';
 import {CALLSIGNS,MAX_PLAYERS,BRIEFING_SECONDS,assignRoles,roleCounts,SPECIMEN,MUTATION_ORDER,HANG,TAPE,RADIO_DELAY,winners} from '../shared/match.js';
 import type * as Party from 'partykit/server';
 import {ACTION_RANGE,CONSOLE_POSITION,DRIFT_PER_SEC,MOVE_SPEED,SHIFT_SECONDS,START_TEMP,TICK_HZ} from '../shared/constants.js';
@@ -50,6 +51,9 @@ export default class Room implements Party.Server {
  surgeUntil=0;mistAt:{x:number;z:number;until:number}|null=null;
  tutorial=false;
  edgeReset=new Map<string,number>();
+ machineState:Record<string,{cycle:number;readyAt:number}>={};
+ armed=new Map<string,{at:number;by:string}>();
+ sabWork=new Map<string,{id:string;start:number}>();
 
  constructor(readonly room:Party.Room){this.resetMatch();}
 
@@ -58,7 +62,7 @@ export default class Room implements Party.Server {
   this.tLeft=SHIFT_SECONDS;this.temp=START_TEMP;this.pressure=20;this.outcome=null;
   this.directorClock=0;this.clusterSeconds=0;this.blackoutSeconds=0;this.lastEvent='';
   this.coolant=createCoolantState(this.seed);this.coolantOperator=null;this.cameraOpened=false;this.tubes=createTubes(this.seed);
-  this.tools=createToolState();this.toolPending.clear();this.edgeReset?.clear();
+  this.tools=createToolState();this.toolPending.clear();this.edgeReset?.clear();this.machineState=Object.fromEntries(MACHINES.map(m=>[m.id,{cycle:0,readyAt:0}]));this.armed?.clear();this.sabWork?.clear();
   for(const id of this.relayJobs.keys())this.relayJobs.set(id,createRelay(this.seed+':'+id));
   this.safePuzzle=puzzleForRoom(this.seed);this.offers=draft(this.seed);
   this.valveUntil=0;this.sealedUntil=0;this.cutCameras.clear();this.lastConsoleCycle=null;this.log=[];this.radioQueue=[];this.surgeUntil=0;this.mistAt=null;
@@ -93,6 +97,8 @@ export default class Room implements Party.Server {
    valve:now<this.valveUntil,sealed:this.sealed,cut:[...this.cutCameras],surge:now<this.surgeUntil,
    console:this.lastConsoleCycle&&now-this.lastConsoleCycle.at<20000?{delta:this.lastConsoleCycle.delta}:null,
    mist:this.mistAt&&now<this.mistAt.until?this.mistAt:null,
+   machines:Object.fromEntries(Object.entries(this.machineState).map(([id,m])=>[id,{cycle:m.cycle,wait:Math.max(0,(m.readyAt-now)/1000)}])),
+   armed:[...this.armed].map(([id,a])=>({id,left:Math.max(0,(a.at-now)/1000)})),
    lobby:[...this.players.values()].filter(p=>!p.bot).map(p=>({line:p.line,ready:p.ready,host:p.id===this.hostId})),
    players:[...this.players.values()].filter(p=>p.role!=='specimen'&&p.state!=='spectator').map(p=>({id:p.id,x:p.x,y:p.y,z:p.z,yaw:p.yaw,stun:p.stun,state:p.state,hang:p.hang?{hands:p.hang.hands,dirX:p.hang.dirX,dirZ:p.hang.dirZ}:null,hold:p.hold?.kind??null})),
    specimen:spec&&spec.state!=='dead'&&this.phase!=='lobby'?{x:spec.x,y:spec.y,z:spec.z,yaw:spec.yaw,still:now-spec.stillSince,stage:spec.stage,mutations:spec.mutations,inVent:spec.inVent,reveal:now<spec.revealUntil,hold:spec.hold?.kind??null,bot:!!spec.bot}:null,
@@ -103,7 +109,7 @@ export default class Room implements Party.Server {
   const now=Date.now();
   const me:any={id:p.id,line:p.line,callsign:p.callsign,role:p.role,state:p.state,hang:p.hang,taped:p.taped?{hits:p.taped.hits,left:Math.max(0,TAPE.autoFree-(now-p.taped.since)/1000)}:null,adrenaline:Math.max(0,(p.adrenalineUntil-now)/1000),hold:p.hold?{kind:p.hold.kind,target:p.hold.target,progress:Math.min(1,(now-p.hold.start)/p.hold.duration)}:null,x:p.x,y:p.y,z:p.z,vy:p.vy,stun:p.stun};
   if(p.role==='specimen')Object.assign(me,{stage:p.stage,mutations:p.mutations,offer:p.offer?{slot:p.offer,ids:this.offers[p.offer]}:null,lunge:Math.max(0,this.lungeCooldown(p)-(now-p.lastLunge)/1000),lungeMax:this.lungeCooldown(p),smash:Math.max(0,SPECIMEN.smashCooldown-(now-p.lastSmash)/1000),sprint:Math.max(0,10-(now-p.lastSprint)/1000),pulse:Math.max(0,12-(now-p.lastPulse)/1000),mistCd:Math.max(0,20-(now-p.lastMist)/1000),inVent:p.inVent,vent:p.vent,solved:p.solved,safePuzzle:this.safePuzzle,sweeper:publicSweeper(this.seed),canVent:this.canVent(p)});
-  if(p.role==='saboteur')me.sabotage=Math.max(0,SAB_COOLDOWN-(now-p.lastSabotage)/1000);
+  if(p.role==='saboteur'){me.sabotage=Math.max(0,SAB_COOLDOWN-(now-p.lastSabotage)/1000);me.override=sabPuzzle('doors',this.seed).code;}
   if(nearStation(p,SCIF_DESK,2.6))me.scif={log:this.log.slice(-8),lines:[...this.players.values()].filter(q=>!q.bot&&q.id!==p.id&&q.state!=='spectator').map(q=>q.line).sort((a,b)=>a-b),powered:this.cameraOpened&&this.tubes.powered};
   return me;
  }
@@ -183,6 +189,8 @@ export default class Room implements Party.Server {
   for(const j of TOOL_JOBS){if(!(j as any).edge)continue;const sealed=this.tools.jobs[j.id]>=3,at=this.edgeReset.get(j.id);
    if(sealed&&at===undefined){this.edgeReset.set(j.id,now+50000);this.temp=Math.max(0,this.temp-3);}
    else if(sealed&&at!==undefined&&now>=at){this.tools.jobs[j.id]=0;this.edgeReset.delete(j.id);}}
+  // Armed sabotage goes off when its countdown ends, unless someone got there first.
+  for(const [id,a] of [...this.armed]){if(now>=a.at){this.armed.delete(id);const by=this.players.get(a.by);this.applySabotage(id,now,by);}}
   const op=this.coolantOperator?this.players.get(this.coolantOperator):null;
   if(updateCoolant(this.coolant,dt,!!op&&atCoolantStation(op))){this.temp=Math.max(0,this.temp-8);this.pressure=Math.max(20,this.pressure-6);this.event('LOWER BASIN: COOLANT FLUSH / CORE -8');if(op)op.stats.tasks++;}
   for(const r of this.radioQueue.filter(r=>now>=r.deliver)){const to=[...this.players.values()].find(p=>p.line===r.to&&!p.bot);if(to)this.send(to.id,{t:'radio',text:r.text});}
@@ -244,6 +252,7 @@ export default class Room implements Party.Server {
     if(s.camera&&this.cutCameras.has(s.camera))return {duration:0,ok:false,why:'ALREADY CUT'};return {duration:s.hold,ok:true};}
    case 'fix':{const s=SABOTAGE.find(s=>s.id===target);if(!s||!humanRole(p)||!near(s,1.6)||!s.fixHold)return {duration:0,ok:false};
     const broken=s.id==='valve'?Date.now()<this.valveUntil:s.id==='breaker'?this.blackoutSeconds>0:!!s.camera&&this.cutCameras.has(s.camera);return {duration:s.fixHold,ok:broken,why:broken?undefined:'NOTHING TO FIX'};}
+   case 'defuse':{const s=SABOTAGE.find(s=>s.id===target);return {duration:1800,ok:!!s&&humanRole(p)&&this.armed.has(target)&&near(s,1.8)};}
    case 'smash':return {duration:SPECIMEN.smashHold,ok:p.role==='specimen'&&near(REACTOR_SMASH,1.8)&&Date.now()-p.lastSmash>SPECIMEN.smashCooldown*1000};
    case 'escape':return {duration:this.mut(p,'crusher')?3000:SPECIMEN.escapeHold,ok:p.role==='specimen'&&p.stage>=3&&near(LIFT_DOOR,3.2),why:p.stage<3?'THE DOOR WILL NOT MOVE / OPEN ALL THREE SAFES':undefined};
    case 'vent':{const v=nearVent(p);return {duration:SPECIMEN.ventEnterHold,ok:p.role==='specimen'&&!!v&&this.canVent(p),why:v&&!this.canVent(p)?'TOO BIG FOR THE DUCT':undefined};}
@@ -276,10 +285,19 @@ export default class Room implements Party.Server {
    if(s.id==='breaker'){this.blackoutSeconds=0;this.event('SUBSTATION / POWER RESTORED');}
    if(s.camera){this.cutCameras.delete(s.camera);this.logLine(`CAM ${CAMERAS.find(c=>c.id===s.camera)!.label.slice(0,2)} / SIGNAL RESTORED`);}
   }
+  if(h.kind==='defuse'&&this.armed.has(h.target)){const s=SABOTAGE.find(s=>s.id===h.target)!;this.armed.delete(h.target);p.stats.rescues++;this.event(`SABOTAGE STOPPED / ${s.label}`);this.logLine(`${s.label} / TAMPERING INTERRUPTED`);}
   if(h.kind==='smash'){p.lastSmash=now;this.temp=Math.max(0,this.temp-12);p.revealUntil=now+2500;this.event('SOMETHING TORE OPEN THE COOLANT BYPASS / CORE -12');}
   if(h.kind==='escape'){p.state='escaped';this.finish('escape');}
   if(h.kind==='vent'){const v=nearVent(p)!;p.inVent=true;p.vent=null;Object.assign(p,{x:v.x,z:v.z});this.ventNoise(v.id);this.send(p.id,{t:'ventOpen',from:v.id});}
   if(h.kind==='pry'){if(!this.cameraOpened&&nearStation(p,CAMERA_PANEL,2.2))this.cameraOpened=true;else this.sealedUntil=0;p.revealUntil=now+2000;this.event('METAL SHRIEKS / A DOOR WAS TORN OPEN');}
+ }
+ private applySabotage(id:string,now:number,p?:Player){
+  const s=SABOTAGE.find(s=>s.id===id)!;
+  if(s.id==='valve'){this.valveUntil=now+s.lasts*1000;this.event('PUMP ROOM / COOLANT VALVE REVERSED');}
+  if(s.id==='breaker'){this.blackoutSeconds=s.lasts;this.event('SUBSTATION / MAIN BREAKER OPEN');}
+  if(s.id==='doors'){this.sealedUntil=now+s.lasts*1000;this.event('BLAST DOORS / BOTH TUNNELS SEALED');}
+  if(s.camera){this.cutCameras.add(s.camera);this.logLine(`CAM ${CAMERAS.find(c=>c.id===s.camera)!.label.slice(0,2)} / SIGNAL LOST`);}
+  if(p)p.stats.sabotage++;
  }
  // A camera that is powered, uncut and in the same space records the tampering.
  private witness(s:{x:number;z:number;label:string}){
@@ -390,6 +408,38 @@ export default class Room implements Party.Server {
    return;
   }
   if(m.t==='tut'&&this.tutorial){this.tutorialEvent(p,m,now);return;}
+  if(m.t==='machine'&&humanRole(p)&&p.state==='ok'){
+   const def=MACHINES.find(d=>d.id===m.id),st=this.machineState[m.id];if(!def||!st)return;
+   if(nearMachine(p,1.8)?.id!==def.id||now<st.readyAt){this.send(p.id,{t:'machineResult',id:def.id,ok:false,reason:'NOT READY'});return;}
+   const r=machineCheck(def.kind,machineSeed(this.seed,def.id,st.cycle),m.answer);
+   if(r.ok){
+    // A saboteur can work a machine to look busy; it does nothing for the core.
+    if(p.role==='crew'){const e:any=def.effect;if(e.temp)this.temp=Math.max(0,this.temp+e.temp);if(e.pressure)this.pressure=Math.max(20,this.pressure+e.pressure);if(e.pin)this.send(p.id,{t:'note',text:`RADIO: CAMERA ROOM CODE ${accessPuzzle(this.seed).pin.split('').join(' ')}`});}
+    p.stats.tasks++;st.cycle++;st.readyAt=now+def.cooldown*1000;this.event(`${def.label} / SERVICED`);
+   }
+   this.send(p.id,{t:'machineResult',id:def.id,ok:r.ok,reason:r.reason});return;
+  }
+  if(m.t==='sabStart'&&p.role==='saboteur'&&p.state==='ok'){
+   const s=SABOTAGE.find(s=>s.id===m.id);if(!s||Math.hypot(p.x-s.x,p.z-s.z)>1.8||now-p.lastSabotage<SAB_COOLDOWN*1000||this.armed.has(s.id))return;
+   this.sabWork.set(p.id,{id:s.id,start:now});
+   // The work is loud: anyone within 14 m hears metal shriek, sparks or clicking.
+   for(const q of this.players.values())if(!q.bot&&q.id!==p.id&&Math.hypot(q.x-s.x,q.z-s.z)<14)this.send(q.id,{t:'cue',kind:s.id==='valve'?'squeal':s.id==='breaker'?'spark':'tamper',x:s.x,z:s.z});
+   return;
+  }
+  if(m.t==='sabDone'&&p.role==='saboteur'&&p.state==='ok'){
+   const w=this.sabWork.get(p.id),s=SABOTAGE.find(s=>s.id===m.id);if(!w||!s||w.id!==s.id||Math.hypot(p.x-s.x,p.z-s.z)>1.8)return;
+   const r:any=sabCheck(s.id,this.seed,m.answer);this.sabWork.delete(p.id);
+   if(!r.ok){
+    if(r.shock){p.stun=1.6;this.event('SPARKS AND A SCREAM IN THE SUBSTATION');for(const q of this.players.values())if(!q.bot&&Math.hypot(q.x-s.x,q.z-s.z)<20)this.send(q.id,{t:'cue',kind:'spark'});}
+    if(r.tamper){this.logLine(`CAM ${s.label.slice(-2)} / TAMPER ALERT`);this.event('SCIF / CAMERA TAMPER ALERT');}
+    this.send(p.id,{t:'sabResult',ok:false,reason:r.reason});return;
+   }
+   // Armed, not instant: every engineer gets a warning and seconds to stop it.
+   p.lastSabotage=now;this.armed.set(s.id,{at:now+SAB_ARM_SECONDS*1000,by:p.id});this.witness(s);
+   this.event(`WARNING / ${s.label} / ${SAB_ARM_SECONDS} SECONDS`);
+   for(const q of this.players.values())if(!q.bot&&q.role!=='specimen')this.send(q.id,{t:'cue',kind:'warn'});
+   this.send(p.id,{t:'sabResult',ok:true});return;
+  }
   if(m.t==='hold'){const spec=this.holdSpec(p,String(m.kind),String(m.target??''));if(spec.ok)p.hold={kind:String(m.kind),target:String(m.target??''),start:now,duration:spec.duration};else if(spec.why)this.send(p.id,{t:'note',text:spec.why});return;}
   if(m.t==='release'){p.hold=null;return;}
   if(m.t==='beat'&&p.state==='hanging'&&p.hang){p.hang.score=Math.min(100,p.hang.score+(m.hit?HANG.hit[2-p.hang.hands]:-HANG.miss));if(p.hang.score<=0)this.release(p,now);return;}

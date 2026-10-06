@@ -127,9 +127,33 @@ export class BunkerAudio {
       case 'pulse':{const o=this.ctx.createOscillator(),m=this.ctx.createOscillator(),mg=this.ctx.createGain();o.frequency.value=220;m.frequency.value=37;mg.gain.value=180;m.connect(mg).connect(o.frequency);const g=this.ctx.createGain();this.env(g,t,.07,.05,1.4);o.connect(g).connect(this.world);o.start(t);m.start(t);o.stop(t+1.6);m.stop(t+1.6);return;}
       case 'radio':this.burst(t,{type:'highpass',freq:1800,dur:.35,vol:.08,bus:this.ui});this.tone(t+.35,{freq:1400,type:'square',dur:.06,vol:.02,bus:this.ui});this.burst(t+.42,{freq:1000,q:.6,dur:.6,vol:.03,bus:this.ui});return;
       case 'lunge':{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(260,t);o.frequency.exponentialRampToValueAtTime(1100,t+.18);o.frequency.exponentialRampToValueAtTime(380,t+.45);const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1400;f.Q.value=3;const g=this.ctx.createGain();this.env(g,t,.1,.02,.45);o.connect(this.distort(4)).connect(f).connect(g).connect(this.world);o.start(t);o.stop(t+.55);this.burst(t,{type:'lowpass',freq:300,dur:.3,vol:.15,buffer:this.brown});return;}
+      // Task foley: valves, dials, fuses, wires, phones.
+      case 'tick':this.burst(t,{freq:3600,q:6,dur:.008,vol:.09,bus:this.ui});this.ring(t,{freqs:[2400,3900],q:40,vol:.012,dur:.05,bus:this.ui});return;
+      case 'creak':this.burst(t,{freq:rand(500,800),q:9,dur:.07,vol:.06,sweep:rand(350,600)});this.burst(t+.03,{freq:2800,q:5,dur:.01,vol:.05});return;
+      case 'squeal':{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.setValueAtTime(rand(900,1200),t);o.frequency.linearRampToValueAtTime(rand(1100,1500),t+.22);const v=this.ctx.createOscillator();v.frequency.value=23;const vg=this.ctx.createGain();vg.gain.value=40;v.connect(vg).connect(o.frequency);const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1300;f.Q.value=6;const g=this.ctx.createGain();this.env(g,t,.05,.02,.25);o.connect(f).connect(g).connect(this.world);o.start(t);v.start(t);o.stop(t+.3);v.stop(t+.3);return;}
+      case 'spark':{for(let i=0;i<7;i++)this.burst(t+i*rand(.008,.03),{type:'highpass',freq:rand(3000,6000),dur:.006,vol:rand(.05,.14),attack:.0005});const o=this.ctx.createOscillator();o.type='square';o.frequency.value=100;const g=this.ctx.createGain();this.env(g,t,.035,.005,.18);o.connect(g).connect(this.world);o.start(t);o.stop(t+.2);return;}
+      case 'snip':this.burst(t,{type:'highpass',freq:4000,dur:.006,vol:.15,attack:.0005});this.ring(t+.004,{freqs:[3100,4700],q:30,vol:.05,dur:.12});this.burst(t+.05,{type:'highpass',freq:5000,dur:.004,vol:.08,attack:.0005});return;
+      case 'warn':for(let i=0;i<4;i++)this.tone(t+i*.2,{freq:i%2?720:960,type:'square',dur:.16,vol:.035,bus:this.ui});return;
+      case 'tamper':for(let i=0;i<4;i++)this.burst(t+i*.09,{freq:2200,q:8,dur:.01,vol:.05});return;
+      case 'steam':this.burst(t,{type:'highpass',freq:2500,dur:1.3,vol:.12,attack:.03,sweep:5000});this.tone(t,{freq:80,to:45,dur:.25,vol:.18});this.ring(t,{freqs:[180,410,760],q:20,vol:.06,dur:.9});return;
+      case 'ring':for(const k of [0,.45])this.tone(t+k,{freq:425,dur:.35,vol:.06,bus:this.ui});for(let i=0;i<5;i++)this.tone(t+1.1+i*.07,{freq:rand(180,320),to:rand(150,260),dur:.06,vol:.04,type:'sawtooth',bus:this.ui});return;
+      case 'busy':for(let i=0;i<4;i++)this.tone(t+i*.4,{freq:425,dur:.2,vol:.05,bus:this.ui});return;
       default:this.burst(t,{freq:900,dur:.1,vol:.05});
     }
   }
+  // Continuous task beds: radio static, a carrier when tuned, the centrifuge whine.
+  loop(name,level){
+    if(!this.ctx||!this.enabled)return;this.loops??={};let l=this.loops[name];const t=this.ctx.currentTime;
+    if(!l){
+      const g=this.ctx.createGain();g.gain.value=0;g.connect(this.ui);
+      if(name==='static'){const s=this.ctx.createBufferSource();s.buffer=this.noise;s.loop=true;const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=2200;f.Q.value=.6;s.connect(f).connect(g);s.start();l={g};}
+      else if(name==='carrier'){const o=this.ctx.createOscillator();o.frequency.value=880;const m=this.ctx.createOscillator();m.frequency.value=4.5;const mg=this.ctx.createGain();mg.gain.value=180;m.connect(mg).connect(o.frequency);const f=this.ctx.createBiquadFilter();f.type='bandpass';f.frequency.value=1100;f.Q.value=2;o.connect(f).connect(g);o.start();m.start();l={g};}
+      else{const o=this.ctx.createOscillator();o.type='sawtooth';o.frequency.value=60;const f=this.ctx.createBiquadFilter();f.type='lowpass';f.frequency.value=1800;o.connect(f).connect(g);o.start();l={g,o};}
+      this.loops[name]=l;
+    }
+    l.g.gain.setTargetAtTime(level,t,.05);if(l.o)l.o.frequency.setTargetAtTime(60+level*900,t,.1);
+  }
+  stopLoops(){for(const k of Object.keys(this.loops||{}))this.loop(k,0);}
   // Specimen footfall: heavy, wet, and somewhere off to one side.
   thud(volume,pan=0){if(!this.ctx||!this.enabled)return;const t=this.ctx.currentTime;this.tone(t,{freq:58,to:32,dur:.28,vol:.32*volume,pan});this.burst(t,{type:'lowpass',freq:320,dur:.22,vol:.2*volume,pan,buffer:this.brown});this.burst(t+.03,{freq:900,q:4,dur:.08,vol:.05*volume,pan});}
 
