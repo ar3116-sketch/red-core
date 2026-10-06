@@ -31,7 +31,7 @@ function play(n,roomId){
   tasks:ps.filter(p=>p.role==='crew').reduce((s,p)=>s+p.stats.tasks,0),sab:ps.filter(p=>p.role==='saboteur').reduce((s,p)=>s+p.stats.sabotage,0),
   rescues:ps.reduce((s,p)=>s+p.stats.rescues,0),falls:ps.reduce((s,p)=>s+p.stats.falls,0),stage:ps.find(p=>p.role==='specimen')?.stage??0,
   tapes:taped.length?taped.map(r=>r[0]).join(''):'0',stopped:events.filter(e=>e.startsWith('SABOTAGE STOPPED')).length,
-  minMoved:Math.min(...ps.filter(p=>p.role!=='specimen').map(p=>Math.round(moved.get(p.id)||0))),says:says.length,sample:says.slice(0,6),events,lazy:ps.filter(p=>p.role!=='specimen'&&(moved.get(p.id)||0)<200).map(p=>`${p.callsign}/${p.role}/${p.state} at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)} task ${p.brain?.task?.kind??'-'}`)};
+  minMoved:Math.min(...ps.filter(p=>p.role!=='specimen'&&p.state!=='dead').map(p=>Math.round(moved.get(p.id)||0))),says:says.length,sample:says.slice(0,6),events,lazy:ps.filter(p=>p.role!=='specimen'&&(moved.get(p.id)||0)<200).map(p=>`${p.callsign}/${p.role}/${p.state} at ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.z.toFixed(1)} task ${p.brain?.task?.kind??'-'}`)};
 }
 const results=[];
 for(let g=0;g<GAMES;g++){
@@ -42,7 +42,7 @@ for(let g=0;g<GAMES;g++){
 console.log('sample chatter:',results.flatMap(r=>r.sample).slice(0,10));
 const kinds=results.reduce((m,r)=>(m[r.kind]=(m[r.kind]||0)+1,m),{});console.log('outcomes',kinds);
 assert.ok(results.every(r=>r.kind!=='none'),'every shift ends');
-assert.ok(results.every(r=>r.minMoved>60),'every bot walks the map');
+assert.ok(results.every(r=>r.minMoved>60),'every living bot walks the map');
 assert.ok(results.reduce((s,r)=>s+r.tasks,0)/GAMES>=8,'crew bots service machines');
 assert.ok(results.some(r=>r.sab>0),'bot saboteurs sabotage');
 console.log('Passed: bot shifts end, bots move, work, sabotage and talk.');

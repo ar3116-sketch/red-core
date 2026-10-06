@@ -1,4 +1,5 @@
 import {makeTool} from './tool-models.js';
+import {makeCanister} from './waste-view.js';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
@@ -18,6 +19,8 @@ export function createFirstPerson(scene) {
   const axis=new THREE.Vector3(0,1,0);
   const rest=new THREE.Vector3(),target=new THREE.Vector3();
   let body,mixer,idle,walk,wasMoving=false,phase=0,reach=0,motion=0;
+  // A waste canister hugged between both gloves.
+  const canister=makeCanister(.72);canister.visible=false;gloves.add(canister);let shakeT=0;
 
   function segment(a,b,r1,r2,material,group) {
     const start=new THREE.Vector3(...a),end=new THREE.Vector3(...b);
@@ -58,7 +61,9 @@ export function createFirstPerson(scene) {
       if(idle)mixer.clipAction(idle).play();
     },
     interact(){reach=1;},
-    update(dt,{position,yaw,pitch,moving,holdingBreath,blackout,menuOpen,toolUse=0,equipping=0}){
+    setCanister(on){canister.visible=on;},
+    jolt(){shakeT=.35;},
+    update(dt,{position,yaw,pitch,moving,holdingBreath,blackout,menuOpen,toolUse=0,equipping=0,grip=1,squeeze=0}){
       motion=THREE.MathUtils.damp(motion,moving?1:0,10,dt);phase+=dt*(moving?7.2:1.6);
       if(body){
         body.position.copy(position);body.position.x+=Math.sin(yaw)*.35;body.position.z+=Math.cos(yaw)*.35;
@@ -76,6 +81,12 @@ export function createFirstPerson(scene) {
         hand.rotation.set(2.0-extension*.25,-side*.7*(1-extension),side*.15*(1-extension));
       });
       if(carried){const hand=hands[1];hand.position.set(.22,-.28+Math.sin(toolUse*Math.PI*4)*.025-equipping*.18,-.43);hand.rotation.set(.3,-.6,.1);carried.position.copy(hand.position).add(new THREE.Vector3(-.018,.02,-.035));carried.rotation.set(-.22,0,-.22+Math.sin(toolUse*Math.PI*4)*.25);}
+      if(canister.visible){
+        // Both hands round the drum. Weak grip tips it; a slip jerks it down; a squeeze pulls the hands in.
+        shakeT=Math.max(0,shakeT-dt);const slip=Math.sin(shakeT*60)*shakeT*.5,sway=Math.sin(phase)*motion*.012,tilt=(1-grip)*.5;
+        canister.position.set(sway,-.47-(1-grip)*.08-shakeT*.12,-.7);canister.rotation.set(.12+slip,0,tilt*Math.sin(phase*.5+1)+slip*.6);
+        hands.forEach((hand,i)=>{const side=i===0?-1:1;hand.position.set(side*(.16-squeeze*.012)+sway,-.33-(1-grip)*.06-shakeT*.1,-.66);hand.rotation.set(1.1,side*1.35,side*(.3+slip));});
+      }
       gloves.visible=!menuOpen;
       ambient.intensity=blackout?.16:.65;light.intensity=blackout?.12:.8;
     },

@@ -137,6 +137,10 @@ export class BunkerAudio {
       // Radio time signal: five short pips and a long sixth on the minute.
       // A muffled voice through a gas mask: a few formant-filtered bursts.
       case 'voice':for(let k=0;k<4;k++)this.burst(t+k*.07+Math.random()*.03,{freq:500+Math.random()*700,q:5,dur:.06,vol:.035,bus:this.ui});return;
+      // Waste canister: a steel drum on concrete, a rubber glove skidding, a hard squeeze.
+      case 'clang':this.burst(t,{type:'lowpass',freq:260,dur:.22,vol:.28});this.ring(t,{freqs:[211,523,1187,1960],q:22,vol:.14,dur:1.6});this.ring(t+.32,{freqs:[230,560,1250],q:20,vol:.06,dur:.8});return;
+      case 'slip':this.burst(t,{freq:1800,q:3,dur:.09,vol:.07,sweep:900,bus:this.ui});this.tone(t,{freq:320,to:180,dur:.12,vol:.05,type:'triangle',bus:this.ui});return;
+      case 'squeeze':this.tone(t,{freq:150,to:210,dur:.09,vol:.08,type:'sawtooth',bus:this.ui});this.burst(t,{type:'lowpass',freq:600,dur:.05,vol:.06,bus:this.ui});return;
       case 'pip':this.tone(t,{freq:1000,dur:.1,vol:.07,attack:.003,bus:this.ui});return;
       case 'pipLong':this.tone(t,{freq:1000,dur:.5,vol:.08,attack:.003,bus:this.ui});return;
       case 'latch':this.burst(t,{type:'lowpass',freq:500,dur:.08,vol:.14});this.ring(t+.01,{freqs:[310,770,1240],q:25,vol:.05,dur:.35});return;

@@ -159,3 +159,9 @@ body.leaning #crisis{display:none}
 .crisis-mark:not(.edge) span{top:-62px}
 .crisis-mark.hot span{color:#071a1c;background:#46d6d0}
 @keyframes crisisblink{50%{opacity:.35}}
+/* Waste canister grip: the gloves keep slipping. */
+#grip{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);width:min(320px,calc(100% - 32px));padding:8px 12px;background:#0b0d09d9;border:2px solid #6e7558;text-align:center;z-index:12;font:bold 11px 'Courier New',monospace;color:#d8cfaa;letter-spacing:1px}
+#grip b{display:block;font-size:10px;color:#c9a032;margin-bottom:5px}#grip-bar{height:12px;background:#1d2119;border:1px solid #4c5446}#grip-fill{display:block;height:100%;background:#c9a032;transition:width .08s steps(4)}
+#grip small{display:block;margin-top:5px;min-height:14px}
+#grip.slip{border-color:#46d6d0;animation:gripflash .18s steps(2) infinite}#grip.slip small{color:#46d6d0}#grip.cramp small,#grip.fumble small{color:#e0703a}#grip.good small{color:#8fbf6a}
+@keyframes gripflash{50%{border-color:#c9a032}}

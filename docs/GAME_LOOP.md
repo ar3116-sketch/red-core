@@ -77,6 +77,13 @@ Walk to a job, lean in, work it with your hands, cool the core, move on. Tasks a
 Each machine generates a new puzzle every cycle, and the server checks the answer.
 
 ### Other engineer jobs
+- **Radwaste haul (the gloves job):**
+  - Take a canister from the rack on the reactor core's east wall and carry it about 32 m to the hopper on the incinerator room's north wall.
+  - Your thick gloves can't hold it. It slips in jolts, more often while you walk. Answer each slip with a fresh squeeze (click or Space) within 0.5 s.
+  - Holding the button down cramps your hand after 2.6 s, and squeezing again within 0.5 s fumbles it.
+  - While carrying you walk at 65% speed and can't shove or pick up tools.
+  - A shove or lunge knocks it out of your hands, and a drop **clangs**: everyone within 30 m hears it and the stalker comes to look. Get shoved over a lip while carrying and the canister goes down the shaft (pressure +3).
+  - Core −3% per canister. The rack holds 3 and restocks 75 s after it empties.
 - **Filters → coolant:** feed 3 filters at the incinerator while the needle is in the amber band. That unblocks the lower-basin coolant valves; balance flow and pressure for 3 s. Core −8%, pressure −6, 45 s cooldown.
 - **Wrench leaks:** pick up a wrench (one tool at a time; G drops it). Hold E for 3 bolt turns per leak. Pressure −4.
 - **Shaft-edge leaks:** six fittings sit **just past broken rails**, in both hall shafts, on the hangar bridge and at the crane. You work them leaning over the drop with your back to the room. They re-open about 50 s after sealing (core −3% each time).

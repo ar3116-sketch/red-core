@@ -39,6 +39,8 @@ import {createTutorial} from './tutorial.js';
 import {createDiegetic} from './diegetic.js';
 import {createMachines} from './machines.js';
 import {createArrows} from './arrows.js';
+import {createWasteView,makeCanister} from './waste-view.js';
+import {WASTE,WASTE_RACK,WASTE_HOPPER,nearWaste,createGrip,GRIP} from '../shared/waste.js';
 import {MACHINES,nearMachine,machineSeed,puzzle,sabPuzzle} from '../shared/machines.js';
 import {SAB_COOLDOWN} from '../shared/stations.js';
 import {COOLANT_STATION} from '../shared/coolant.js';
@@ -64,6 +66,7 @@ const alarmLights=buildAlarms(scene);
 const selectLights=lightSelector(scene);
 addProps(scene);
 const firstPerson=createFirstPerson(scene);
+const wasteView=createWasteView(scene);
 const toolWorld=createToolWorld(scene);
 const specimenView=createSpecimenView(scene);
 function resizeView(){
@@ -173,6 +176,8 @@ function updatePeers(players,dt,now){
   mesh.rotation.y=moving&&!p.hang?Math.atan2(dx,dz):face;
   const m=mesh.userData.motion;if(m){if(moving)m.movingUntil=now+180;const walking=now<m.movingUntil;if(walking!==m.walking&&m.walk){(walking?m.walk:m.idle).reset().fadeIn(.15).play();(walking?m.idle:m.walk).fadeOut(.15);m.walking=walking;}m.mixer.update(dt);}
   mesh.userData.tape.visible=p.state==='taped';
+  if(p.carry&&!mesh.userData.canister){const c=makeCanister(1/(mesh.scale.x||1));c.position.set(0,.78/(mesh.scale.x||1),.32/(mesh.scale.x||1));mesh.add(c);mesh.userData.canister=c;}
+  if(mesh.userData.canister)mesh.userData.canister.visible=!!p.carry;
   // Thermal pits light warm bodies within 10 m.
   const hot=me.role==='specimen'&&has('thermal')&&Math.hypot(p.x-position.x,p.z-position.z)<10;
   if(mesh.userData.hot!==hot){mesh.userData.hot=hot;mesh.traverse(o=>{if(o.isMesh&&o.userData.base)o.material=hot?thermal:o.userData.base;});}
@@ -207,7 +212,7 @@ addEventListener('keydown',event=>{
  if(event.code==='Escape'){event.preventDefault();if(machines.active){machines.close();return;}if(blockers().length){for(const p of blockers())p.close();return;}if(getMode()==='shift')setPause($('pause').hidden);else if(getMode()==='howto')showHome();return;}
  if(getMode()==='shift'&&machines.active&&machines.key(event.code,true)){event.preventDefault();return;}
  if(getMode()!=='shift'||panelOpen())return;
- if(event.code==='Space'){event.preventDefault();if(!event.repeat)beatPress();if(me.state!=='dead')return;}
+ if(event.code==='Space'){event.preventDefault();if(!event.repeat){if(me.carry&&me.state==='ok')gripDown();else beatPress();}if(me.state!=='dead')return;}
  if(event.code==='Tab')return;
  if(!event.repeat){
   if(event.code==='KeyG'){event.preventDefault();toolDrop();}
@@ -218,15 +223,16 @@ addEventListener('keydown',event=>{
  }
  keys.add(event.code);
 });
-addEventListener('keyup',event=>{keys.delete(event.code);machines.key(event.code,false);if(holding&&holding.key===event.code)stopInteract();});
+addEventListener('keyup',event=>{keys.delete(event.code);if(event.code==='Space')gripUp();machines.key(event.code,false);if(holding&&holding.key===event.code)stopInteract();});
 addEventListener('blur',()=>{keys.clear();stopInteract();});
 canvas.addEventListener('pointerdown',event=>{
  if(event.pointerType!=='mouse'||getMode()!=='shift'||panelOpen())return;
  if(document.pointerLockElement===canvas){if(event.button===0)primary();return;}
  try{const r=canvas.requestPointerLock?.();r?.catch?.(()=>{});}catch{}
+ if(me.carry)gripDown();
  dragging=true;lastPointerX=event.clientX;lastPointerY=event.clientY;canvas.setPointerCapture(event.pointerId);
 });
-canvas.addEventListener('pointerup',()=>{dragging=false;});canvas.addEventListener('pointercancel',()=>{dragging=false;});
+canvas.addEventListener('pointerup',()=>{dragging=false;gripUp();});canvas.addEventListener('pointercancel',()=>{dragging=false;});
 canvas.addEventListener('pointermove',event=>{
  if(!dragging||document.pointerLockElement===canvas||event.pointerType!=='mouse')return;
  yaw-=(event.clientX-lastPointerX)*.004*sensitivity;pitch=THREE.MathUtils.clamp(pitch-(event.clientY-lastPointerY)*.004*sensitivity,-1.48,1.25);
@@ -249,15 +255,20 @@ $('breath').addEventListener('pointerdown',e=>{e.preventDefault();touchBreath=tr
 const act=$('act');
 act.addEventListener('pointerdown',e=>{e.preventDefault();if(beat.mode){beatPress();return;}startInteract('touch');});
 act.addEventListener('pointerup',()=>{if(holding?.key==='touch')stopInteract();});
-$('shove-btn').addEventListener('pointerdown',e=>{e.preventDefault();primary();});
+$('shove-btn').addEventListener('pointerdown',e=>{e.preventDefault();primary();});$('shove-btn').addEventListener('pointerup',gripUp);
 
 // F / click: engineers shove, the specimen lunges.
 function primary(){
  if(getMode()!=='shift'||me.state!=='ok'||panelOpen())return;
+ if(me.carry){gripDown();return;}
  const v=movementVector(yaw,1,0);
  if(me.role==='specimen'){if((me.lunge||0)<=0){send({t:'lunge',dx:v.x,dz:v.z});audio.cue('lunge');}else note(`LUNGE IN ${Math.ceil(me.lunge)}S`);}
  else{send({t:'shove',dx:v.x,dz:v.z});firstPerson.interact();}
 }
+// ---------- the waste canister grip ----------
+let grip=null,dropSent=false;
+function gripDown(){if(!grip||!me.carry)return;const gain=grip.press();audio.cue(gain>=GRIP.resqueezeGain?'squeeze':gain<0?'slip':'creak');}
+function gripUp(){grip?.release();}
 function beatPress(){
  const hit=beat.press();if(hit===null)return;
  if(beat.mode==='hang'){send({t:'beat',hit});tutorial.beat(hit);}else send({t:'break',hit});
@@ -281,6 +292,11 @@ function interaction(){
  }
  const hanging=close(1.9,q=>q.state==='hanging');if(hanging)return {key:'KeyE',label:'HOLD E / PULL THEM UP',hold:{kind:'help',target:hanging.id}};
  const taped=close(TAPE.range,q=>q.state==='taped');if(taped)return {key:'KeyE',label:'HOLD E / CUT THE TAPE',hold:{kind:'cut',target:taped.id}};
+ // Radwaste: hands full until it is in the hopper.
+ if(me.carry)return nearWaste(p,WASTE_HOPPER)?{key:'KeyE',label:'E / TIP THE CANISTER INTO THE HOPPER',press:()=>send({t:'wasteLoad'})}:null;
+ const dropped=(S.waste?.drops||[]).find(d=>Math.abs(d.y-p.y)<.9&&Math.hypot(d.x-p.x,d.z-p.z)<=WASTE.pickReach);
+ if(dropped)return {key:'KeyE',label:'E / LIFT THE WASTE CANISTER',press:()=>send({t:'wastePick',id:dropped.id})};
+ if(nearWaste(p,WASTE_RACK))return S.waste?.rack?{key:'KeyE',label:`E / TAKE A WASTE CANISTER (${S.waste.rack} ON THE RACK)`,press:()=>send({t:'wasteTake'})}:{key:'KeyE',label:`RACK EMPTY / MORE IN ${Math.ceil(S.waste?.refill||0)}S`,press:()=>note('THE RACK IS EMPTY')};
  if(toolTarget){const t=toolTarget,held=heldTool(toolState,myId);
   if(t.type==='pickup')return {key:'KeyE',label:`E / TAKE ${t.label}`,press:()=>{firstPerson.interact();send({t:'toolPick',id:t.id});}};
   if(t.type==='climb')return {key:'KeyE',label:'E / CLIMB ROPE',press:()=>send({t:'ropeClimb',id:t.id})};
@@ -416,7 +432,7 @@ function loop(now){
    const forward=blocked?0:Number(keys.has('KeyW'))-Number(keys.has('KeyS'))+padForward;
    const strafe=blocked?0:Number(keys.has('KeyD'))-Number(keys.has('KeyA'))+padStrafe;
    const v=movementVector(yaw,forward,strafe);
-   let speed=spec?SPECIMEN.speed:MOVE_SPEED*((me.adrenaline||0)>0?TAPE.adrenalineSpeed:1);
+   let speed=spec?SPECIMEN.speed:MOVE_SPEED*((me.adrenaline||0)>0?TAPE.adrenalineSpeed:1)*(me.carry?WASTE.carrySpeed:1);
    if(spec)for(const id of Object.values(me.mutations||{}))speed*=PARTS.find(p=>p.id===id)?.speed??1;
    if(spec&&has('leaper')&&(me.sprint||0)>8)speed*=2;
    const next=moveWithCollisions(position,v.x*speed*dt,v.z*speed*dt,solidsForState(cameraOpened,S.sealed),undefined,dt,!spec);
@@ -454,7 +470,7 @@ function loop(now){
  if(holding&&!current)stopInteract();
  $('prompt').textContent=current?.label||'';
  act.hidden=!current&&!beat.mode;act.textContent=beat.mode?'TAP ON THE BEAT':current?(current.label.split('/').pop().trim().split(' ').slice(0,2).join(' ')):'ACTION';
- $('shove-btn').hidden=!inShift||me.state!=='ok';$('shove-btn').textContent=spec?'LUNGE':'SHOVE';
+ $('shove-btn').hidden=!inShift||me.state!=='ok';$('shove-btn').textContent=spec?'LUNGE':me.carry?'GRIP':'SHOVE';
  const progress=me.hold?me.hold.progress:toolPending?Math.min(1,(Date.now()-toolPending.started)/toolPending.duration):null;
  $('hold-ring').hidden=progress===null||!inShift;if(progress!==null)$('hold-arc').style.strokeDashoffset=String(100.5*(1-progress));
  if(toolPending&&holding?.tool){
@@ -475,6 +491,17 @@ function loop(now){
  const temp=st.temp,pressure=st.pressure,blackout=!!st.blackout;
  bunker.facility.setState(st);bunker.stations.update(now,st);
  if(inShift)machines.update(dt,now,st);
+ wasteView.update(st,now);
+ if(inShift&&me.carry&&me.state==='ok'&&!dropSent){
+  grip??=createGrip();const ev=grip.update(dt,moving);
+  if(ev==='jolt'){audio.cue('slip');firstPerson.jolt();}
+  if(ev==='drop'){dropSent=true;send({t:'wasteDrop'});firstPerson.jolt();note('IT SLIPPED OUT OF YOUR GLOVES');}
+ }else if(!me.carry){grip=null;dropSent=false;}
+ const g=$('grip');g.hidden=!grip||!inShift;
+ if(grip){$('grip-fill').style.width=grip.value.toFixed(0)+'%';const slipping=grip.sinceJolt<GRIP.resqueeze,cramp=grip.held&&grip.heldFor>GRIP.cramp;
+  g.className=slipping?'slip':cramp?'cramp':grip.flash>0?'good':grip.fumbled>0?'fumble':'';
+  $('grip-cue').textContent=slipping?'SQUEEZE!':cramp?'CRAMP / LET GO':grip.flash>0?'GOT IT':grip.fumbled>0?'FUMBLED / TOO FAST':'CLICK OR SPACE WHEN IT SLIPS';}
+ firstPerson.setCanister(!!me.carry&&inShift);
  arrows.update(camera,me,inShift?st:null,position);
  const specimen=inShift||mode==='over'?st.specimen:null;
  specimenView.update(specimen,{dt,now,self:spec,surge:st.surge});specimenView.mist(st.mist,now);
@@ -510,7 +537,7 @@ function loop(now){
  if(relay.isOpen&&Math.hypot(position.x-CONSOLE_POSITION.x,position.z-CONSOLE_POSITION.z)>ACTION_RANGE)relay.close();
  if(facilityPanels.isOpen&&!nearStation(position,facilityPanels.mode==='access'?CAMERA_PANEL:INCINERATOR))facilityPanels.close();
  if(tubes.isOpen&&!nearStation(position,TUBE_RACK))tubes.close();
- firstPerson.update(dt,{position,yaw,pitch,moving,toolUse:toolPending?.5:0,equipping:equip,holdingBreath:keys.has('KeyC')||touchBreath,blackout,menuOpen:!inShift||panelOpen()||spec||me.state!=='ok'});
+ firstPerson.update(dt,{position,yaw,pitch,moving,grip:grip?Math.max(.15,grip.value/100):1,squeeze:grip?.held?1:0,toolUse:toolPending?.5:0,equipping:equip,holdingBreath:keys.has('KeyC')||touchBreath,blackout,menuOpen:!inShift||panelOpen()||spec||me.state!=='ok'});
  bunker.renderFeeds(renderer,now,tubesState.powered,position,selectLights,{before:()=>specimenView.beginFeed(),after:()=>specimenView.endFeed()});
  selectLights(camera.position);
  ps1.render(scene,camera,{danger,blackout,time:now/1000},()=>{if(inShift&&!spec&&me.state==='ok')firstPerson.render(renderer);});
